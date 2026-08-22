@@ -1,0 +1,44 @@
+# Android & Gradle
+.gradle/
+build/
+*/build/
+app/build/
+
+# Local configuration file (sdk path, keystore password, etc)
+local.properties
+.signing/
+*.jks
+*.keystore
+
+# IDE & Editor files
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# Build artifacts & packages
+*.apk
+*.ap_
+*.aab
+*.dex
+bin/
+gen/
+out/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Temporary & Screenshot files
+img*.png
+screenshot*.png
+*~
+*.swp
+*.log
+.DS_Store
+
+# Keep wrapper
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
