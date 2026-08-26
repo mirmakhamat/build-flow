@@ -1,10 +1,15 @@
 package uz.buildflow.app.presentation.workers
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -14,47 +19,50 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import uz.buildflow.app.core.theme.*
+import uz.buildflow.app.core.util.CalendarDayItem
 import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.*
 import uz.buildflow.app.presentation.common.AmountInputField
-import java.util.Calendar
-
-data class DisplayBonusItem(
-    val id: String,
-    val amount: Double,
-    val date: String,
-    val reason: String?,
-    val isPaid: Boolean,
-    val rawGeneralBonus: GeneralBonus? = null,
-    val rawPayment: WorkerPayment? = null
-)
+import uz.buildflow.app.presentation.common.MetricCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkerDetailScreen(
     viewModel: WorkerDetailViewModel,
     onBack: () -> Unit,
-    onNavigateToPayments: (objectId: String, workerName: String) -> Unit
+    onNavigateToPayments: (objectId: String, workerName: String) -> Unit = { _, _ -> }
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val worker = uiState.worker
     val stats = uiState.stats
 
+    var currentYear by remember { mutableStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)) }
+    var currentMonth by remember { mutableStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1) }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = worker?.name ?: "Ishchi Profili",
-                        style = MaterialTheme.typography.titleLarge
-                    )
+                    Column {
+                        Text(
+                            text = worker?.name ?: "Ishchi Profili",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        if (!worker?.position.isNullOrBlank()) {
+                            Text(
+                                text = worker?.position ?: "",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -63,150 +71,185 @@ fun WorkerDetailScreen(
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(imageVector = Icons.Default.Refresh, contentDescription = "Yangilash (Refresh)", tint = DeepBluePrimary)
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Yangilash (Refresh)",
+                            tint = DeepBluePrimary
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceLight)
             )
         }
     ) { paddingValues ->
-        if (uiState.isLoading || worker == null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = DeepBluePrimary)
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .background(BackgroundLight)
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // 1. Ishchi Statistikasi va Balansi
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceLight),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(BackgroundLight)
+        ) {
+            if (uiState.isLoading && worker == null) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = DeepBluePrimary)
+            } else if (worker == null) {
+                Text(
+                    text = "Ishchi topilmadi",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TextSecondary,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    // 1. Ishchi Moliyaviy Metriklari (3 ta asosiy kartochka)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Sarlavha
-                        Column {
-                            Text(text = worker.name, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
-                            Text(
-                                text = "${worker.position ?: "Usta"} · Standart: ${CurrencyFormatter.formatAmount(worker.defaultRate)} / kun",
-                                color = TextSecondary,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
+                        MetricCard(
+                            title = "Ishladi",
+                            amount = "${stats?.workedDaysCount ?: 0} kun",
+                            accentColor = DeepBlueLight,
+                            icon = Icons.Default.CalendarToday,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MetricCard(
+                            title = "To'langan",
+                            amount = CurrencyFormatter.formatAmountShort(stats?.totalPaid ?: 0.0),
+                            accentColor = EmeraldSuccess,
+                            icon = Icons.Default.CheckCircle,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MetricCard(
+                            title = "Sof Qarz",
+                            amount = CurrencyFormatter.formatAmountShort(stats?.remainingDebtToWorker ?: 0.0),
+                            accentColor = if ((stats?.remainingDebtToWorker ?: 0.0) > 0) RoseExpense else EmeraldSuccess,
+                            icon = Icons.Default.AccountBalanceWallet,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
-                        HorizontalDivider(color = BorderColor)
-
-                        // Kun, Ish haqi, Bonuslar qatori
+                    // 2. To'lovlar Tarixi Tugmasi
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onNavigateToPayments(worker.objectId, worker.name)
+                            },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = DeepBluePrimary.copy(alpha = 0.08f)),
+                        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(DeepBluePrimary.copy(alpha = 0.3f)))
+                    ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(text = "Ishlagan kun", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
-                                Text(
-                                    text = "${stats?.workedDaysCount ?: 0} kun",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = DeepBluePrimary
-                                )
-                            }
-                            Column(modifier = Modifier.weight(1.3f)) {
-                                Text(text = "Ish haqi", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
-                                Text(
-                                    text = CurrencyFormatter.formatAmount(stats?.totalSalaryEarned ?: 0.0),
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    maxLines = 1
-                                )
-                            }
-                            Column(modifier = Modifier.weight(1.1f), horizontalAlignment = Alignment.End) {
-                                Text(text = "Bonuslar", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
-                                Text(
-                                    text = CurrencyFormatter.formatAmount((stats?.totalDailyBonuses ?: 0.0) + (stats?.totalGeneralBonuses ?: 0.0)),
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = EmeraldSuccess,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-
-                        HorizontalDivider(color = BorderColor)
-
-                        // Berilgan Pul, Qarz kunlar va Qolgan Qarz qatori
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1.1f)) {
-                                Text(text = "Berilgan Pul", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = CurrencyFormatter.formatAmount(stats?.totalPaid ?: 0.0),
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = EmeraldSuccess,
-                                    maxLines = 1
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ReceiptLong,
+                                    contentDescription = null,
+                                    tint = DeepBluePrimary
                                 )
+                                Column {
+                                    Text(
+                                        text = "To'lovlar Tarixi (Barcha to'lovlar va avanslar)",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = DeepBluePrimary
+                                    )
+                                    Text(
+                                        text = "Jami berilgan: ${CurrencyFormatter.formatAmount(stats?.totalPaid ?: 0.0)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextSecondary
+                                    )
+                                }
                             }
-
-                            Column(modifier = Modifier.weight(1.1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "Qarz kunlar", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = CurrencyFormatter.formatAmount(stats?.totalUnpaidAccrued ?: 0.0),
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = AmberWarning,
-                                    maxLines = 1
-                                )
-                            }
-
-                            Column(modifier = Modifier.weight(1.1f), horizontalAlignment = Alignment.End) {
-                                Text(text = "Sof Qarz", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = CurrencyFormatter.formatAmount(stats?.remainingDebtToWorker ?: 0.0),
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = if ((stats?.remainingDebtToWorker ?: 0.0) > 0) RoseExpense else EmeraldSuccess,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-
-                        // To'lovlar Tarixi Tugmasi
-                        Button(
-                            onClick = { onNavigateToPayments(worker.objectId, worker.name) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(46.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = DeepBluePrimary,
-                                contentColor = Color.White
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = DeepBluePrimary
                             )
+                        }
+                    }
+
+                    // 3. Oylik Kalendar boshqaruvi
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
+                        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderColor))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("To'lovlar va Avanslar Tarixi", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = Color.White)
+                            // Oy va Yil sarlavhasi hamda almashtirish
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = DateUtil.getMonthYearTitle(currentYear, currentMonth),
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = DeepBluePrimary
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    IconButton(
+                                        onClick = {
+                                            if (currentMonth == 1) {
+                                                currentMonth = 12
+                                                currentYear -= 1
+                                            } else {
+                                                currentMonth -= 1
+                                            }
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(imageVector = Icons.Default.ChevronLeft, contentDescription = "Oldingi oy")
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            if (currentMonth == 12) {
+                                                currentMonth = 1
+                                                currentYear += 1
+                                            } else {
+                                                currentMonth += 1
+                                            }
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(imageVector = Icons.Default.ChevronRight, contentDescription = "Keyingi oy")
+                                    }
+                                }
+                            }
+
+                            // Dinamik interaktiv kalendar kataklari
+                            DynamicCalendarSection(
+                                daysList = uiState.days,
+                                paymentsList = uiState.payments,
+                                generalBonuses = uiState.generalBonuses,
+                                year = currentYear,
+                                month = currentMonth,
+                                onDayClick = { clickedDateIso ->
+                                    viewModel.selectDateForEdit(clickedDateIso)
+                                }
+                            )
+
+                            // Ranglar ko'rsatkichi (Legend)
+                            CalendarLegend()
                         }
                     }
                 }
-
-                // 2. Dinamik va Rangli Kalendar (Asosiy Boshqaruv Markazi)
-                DynamicCalendarSection(
-                    daysList = uiState.days,
-                    paymentsList = uiState.payments,
-                    bonusesList = uiState.generalBonuses,
-                    onDateClick = { date -> viewModel.selectDateForEdit(date) }
-                )
             }
         }
     }
@@ -274,202 +317,193 @@ fun WorkerDetailScreen(
 fun DynamicCalendarSection(
     daysList: List<WorkerDay>,
     paymentsList: List<WorkerPayment>,
-    bonusesList: List<GeneralBonus>,
-    onDateClick: (String) -> Unit
+    generalBonuses: List<GeneralBonus>,
+    year: Int,
+    month: Int,
+    onDayClick: (String) -> Unit
 ) {
-    val currentCal = Calendar.getInstance()
-    var selectedYear by remember { mutableStateOf(currentCal.get(Calendar.YEAR)) }
-    var selectedMonth by remember { mutableStateOf(currentCal.get(Calendar.MONTH) + 1) }
-
-    val daysGrid = remember(selectedYear, selectedMonth) {
-        DateUtil.getCalendarGrid(selectedYear, selectedMonth)
+    val daysGrid = remember(year, month) {
+        DateUtil.getCalendarGrid(year, month)
     }
-    val daysMap = remember(daysList) { daysList.associateBy { it.date } }
 
-    val dailyAccruedMap = remember(daysList, bonusesList) {
-        val map = mutableMapOf<String, Double>()
-        daysList.forEach { d ->
-            if (d.status != AttendanceStatus.ABSENT) {
-                map[d.date] = (map[d.date] ?: 0.0) + d.paymentAmount
+    val daysMap = remember(daysList) {
+        daysList.associateBy { it.date }
+    }
+
+    val paymentsMap = remember(paymentsList) {
+        paymentsList.groupBy { it.date }
+    }
+
+    val bonusesMap = remember(generalBonuses) {
+        generalBonuses.groupBy { it.date }
+    }
+
+    val weekDays = listOf("Du", "Se", "Chor", "Pay", "Jum", "Sha", "Yak")
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Hafta kunlari nomlari
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            weekDays.forEach { dayName ->
+                Text(
+                    text = dayName,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = TextMuted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
-        bonusesList.forEach { b ->
-            map[b.date] = (map[b.date] ?: 0.0) + b.amount
+
+        // 7 ustunli kalendar jadvali
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(7),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(290.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            userScrollEnabled = false
+        ) {
+            items(daysGrid) { item ->
+                if (item == null) {
+                    Box(modifier = Modifier.aspectRatio(1f))
+                } else {
+                    val record = daysMap[item.dateIso]
+                    val dayPayments = paymentsMap[item.dateIso] ?: emptyList()
+                    val dayBonuses = bonusesMap[item.dateIso] ?: emptyList()
+
+                    CalendarDayCell(
+                        dayItem = item,
+                        record = record,
+                        payments = dayPayments,
+                        bonuses = dayBonuses,
+                        onClick = { onDayClick(item.dateIso) }
+                    )
+                }
+            }
         }
-        map
+    }
+}
+
+@Composable
+fun CalendarDayCell(
+    dayItem: CalendarDayItem,
+    record: WorkerDay?,
+    payments: List<WorkerPayment>,
+    bonuses: List<GeneralBonus>,
+    onClick: () -> Unit
+) {
+    val hasDirectPayments = payments.any { it.type != PaymentType.BONUS_PAYOUT }
+    val salaryPayment = payments.find { it.type == PaymentType.SALARY && it.amount > 0 }
+    val isDayPaid = record != null && (record.paymentStatus == PaymentStatus.PAID && salaryPayment != null)
+    val isDayUnpaid = record != null && record.status != AttendanceStatus.ABSENT && !isDayPaid
+    val hasBonuses = bonuses.isNotEmpty() || payments.any { it.type == PaymentType.BONUS_PAYOUT }
+
+    // Fon rangi
+    val backgroundColor = when {
+        isDayPaid -> EmeraldSuccess
+        isDayUnpaid -> AmberWarning
+        record?.status == AttendanceStatus.ABSENT -> RoseExpense.copy(alpha = 0.85f)
+        hasDirectPayments -> DeepBluePrimary
+        hasBonuses -> PurpleBonus
+        else -> SurfaceVariantLight.copy(alpha = 0.6f)
     }
 
-    val dailyPaidMap = remember(paymentsList) {
-        val map = mutableMapOf<String, Double>()
-        paymentsList.forEach { p ->
-            map[p.date] = (map[p.date] ?: 0.0) + p.amount
-        }
-        map
+    // Matn rangi
+    val textColor = when {
+        isDayPaid || isDayUnpaid || record?.status == AttendanceStatus.ABSENT || hasDirectPayments || hasBonuses -> Color.White
+        dayItem.isToday -> DeepBluePrimary
+        else -> TextPrimary
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    Box(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .background(
+                color = backgroundColor,
+                shape = RoundedCornerShape(10.dp)
+            )
+            .clickable { onClick() }
+            .padding(4.dp),
+        contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = {
-                        if (selectedMonth == 1) {
-                            selectedMonth = 12
-                            selectedYear -= 1
-                        } else {
-                            selectedMonth -= 1
-                        }
+            Text(
+                text = "${dayItem.dayNumber}",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = textColor
+            )
+
+            // Belgilar (Davomat turi yoki bonus/avans nuqtalari)
+            if (record != null) {
+                Text(
+                    text = CurrencyFormatter.formatAmountShort(record.paymentAmount),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                    color = textColor.copy(alpha = 0.9f)
+                )
+            } else if (hasDirectPayments || hasBonuses) {
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (hasDirectPayments) {
+                        Box(modifier = Modifier.size(4.dp).background(Color.White, CircleShape))
                     }
-                ) {
-                    Icon(imageVector = Icons.Default.ChevronLeft, contentDescription = "Oldingi oy", tint = DeepBluePrimary)
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = DateUtil.getMonthYearTitle(selectedYear, selectedMonth),
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = DeepBluePrimary
-                    )
-                }
-
-                IconButton(
-                    onClick = {
-                        if (selectedMonth == 12) {
-                            selectedMonth = 1
-                            selectedYear += 1
-                        } else {
-                            selectedMonth += 1
-                        }
-                    }
-                ) {
-                    Icon(imageVector = Icons.Default.ChevronRight, contentDescription = "Keyingi oy", tint = DeepBluePrimary)
-                }
-            }
-
-            // Hafta kunlari
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                listOf("Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya").forEach { dayName ->
-                    Text(
-                        text = dayName,
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = TextSecondary,
-                        modifier = Modifier.weight(1f),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                daysGrid.chunked(7).forEach { week ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        week.forEach { item ->
-                            if (item == null) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            } else {
-                                val record = daysMap[item.dateIso]
-                                val accruedOnThisDay = dailyAccruedMap[item.dateIso] ?: 0.0
-                                val totalPaidOnThisDay = dailyPaidMap[item.dateIso] ?: 0.0
-
-                                val isAbsent = record?.status == AttendanceStatus.ABSENT
-
-                                // Qarz bormi: hisoblangan summa to'langanidan ko'p bo'lsa yoki to'lov bo'lmasa
-                                val isUnpaidDebt = !isAbsent && (
-                                    (accruedOnThisDay > totalPaidOnThisDay) ||
-                                    (record?.paymentStatus == PaymentStatus.UNPAID && record.paymentAmount > 0)
-                                )
-
-                                // To'liq to'langanmi
-                                val isFullyPaid = !isAbsent && (accruedOnThisDay > 0 || totalPaidOnThisDay > 0) && (totalPaidOnThisDay >= accruedOnThisDay) && (record?.paymentStatus != PaymentStatus.UNPAID)
-
-                                val bgColor = when {
-                                    isAbsent -> RoseLight
-                                    isUnpaidDebt -> AmberLight
-                                    isFullyPaid -> EmeraldLight
-                                    else -> if (item.isToday) DeepBluePrimary.copy(alpha = 0.08f) else SurfaceVariantLight.copy(alpha = 0.5f)
-                                }
-
-                                val textColor = when {
-                                    isAbsent -> RoseExpense
-                                    isUnpaidDebt -> AmberWarning
-                                    isFullyPaid -> EmeraldSuccess
-                                    else -> if (item.isToday) DeepBluePrimary else TextPrimary
-                                }
-
-                                // SARIQ bo'lganda to'lanmagan summa (qarz), YASHIL bo'lganda to'liq to'langan summa
-                                val displayAmount = when {
-                                    isUnpaidDebt -> {
-                                        if (accruedOnThisDay > totalPaidOnThisDay) accruedOnThisDay - totalPaidOnThisDay
-                                        else (record?.paymentAmount ?: accruedOnThisDay)
-                                    }
-                                    isFullyPaid -> totalPaidOnThisDay
-                                    totalPaidOnThisDay > 0 -> totalPaidOnThisDay
-                                    accruedOnThisDay > 0 -> accruedOnThisDay
-                                    else -> 0.0
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .aspectRatio(1f)
-                                        .padding(2.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(bgColor)
-                                        .then(
-                                            if (item.isToday) Modifier.border(1.5.dp, DeepBluePrimary, RoundedCornerShape(10.dp))
-                                            else Modifier
-                                        )
-                                        .clickable { onDateClick(item.dateIso) },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.Center
-                                    ) {
-                                        Text(
-                                            text = item.dayNumber.toString(),
-                                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                            color = textColor
-                                        )
-                                        if (displayAmount > 0) {
-                                            Text(
-                                                text = CurrencyFormatter.formatAmountShort(displayAmount),
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = textColor
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if (week.size < 7) {
-                            for (k in 0 until (7 - week.size)) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
+                    if (hasBonuses) {
+                        Box(modifier = Modifier.size(4.dp).background(AmberWarning, CircleShape))
                     }
                 }
             }
         }
     }
 }
+
+@Composable
+fun CalendarLegend() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        LegendItem(color = EmeraldSuccess, label = "To'langan")
+        LegendItem(color = AmberWarning, label = "Qarz")
+        LegendItem(color = RoseExpense, label = "Kelmadi")
+        LegendItem(color = DeepBluePrimary, label = "Avans")
+        LegendItem(color = PurpleBonus, label = "Bonus")
+    }
+}
+
+@Composable
+fun LegendItem(color: Color, label: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(color, RoundedCornerShape(3.dp))
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = TextSecondary
+        )
+    }
+}
+
+data class DisplayBonusItem(
+    val id: String,
+    val amount: Double,
+    val date: String,
+    val reason: String?,
+    val isPaid: Boolean,
+    val rawGeneralBonus: GeneralBonus?,
+    val rawPayment: WorkerPayment?
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -505,8 +539,6 @@ fun DayDetailBottomSheet(
     var note by remember(existingRecord) { mutableStateOf(existingRecord?.note ?: "") }
     var selectedPayerObjectId by remember { mutableStateOf<String?>(null) }
     var isObjectMenuExpanded by remember { mutableStateOf(false) }
-
-    val isEditMode = existingRecord != null
 
     // 1. FAQAT SOF TO'LOVLAR (Ish haqi va Avanslar)
     val directPayments = remember(paymentsOnDay) {
@@ -576,6 +608,9 @@ fun DayDetailBottomSheet(
         list
     }
 
+    val hasAnyRecords = existingRecord != null || directPayments.isNotEmpty() || displayBonusItems.isNotEmpty()
+    var isEditingAttendanceForm by remember { mutableStateOf(!hasAnyRecords) }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
@@ -601,120 +636,120 @@ fun DayDetailBottomSheet(
                 }
             }
 
-            // 1. BO'LIM: DAVOMAT VA KUNLIK ISH HAQI
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isDayUnpaid) AmberLight.copy(alpha = 0.4f) else SurfaceVariantLight.copy(alpha = 0.5f)
-                ),
-                border = CardDefaults.outlinedCardBorder().copy(
-                    brush = androidx.compose.ui.graphics.SolidColor(if (isDayUnpaid) AmberWarning.copy(alpha = 0.5f) else BorderColor)
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+            // HOLAT 1: Shu kuni hech narsa bo'lmagan bo'lsa YOKI Davomat formasi tahrirlanayotgan bo'lsa -> FAQAT FORMA CHIQADI!
+            if (isEditingAttendanceForm) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceVariantLight.copy(alpha = 0.5f)),
+                    border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderColor))
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(text = "Davomat va Ish Haqi", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = DeepBluePrimary)
-                        if (isDayUnpaid) {
-                            Text(text = "Qarz", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = AmberWarning)
-                        } else if (isDayPaid) {
-                            Text(text = "To'langan", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = EmeraldSuccess)
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(
-                            AttendanceStatus.WORKED to "Ishladi",
-                            AttendanceStatus.HALF_DAY to "Yarim kun",
-                            AttendanceStatus.ABSENT to "Kelmadi"
-                        ).forEach { (st, label) ->
-                            FilterChip(
-                                selected = status == st,
-                                onClick = {
-                                    status = st
-                                    if (st == AttendanceStatus.ABSENT) paymentStr = "0"
-                                    if (st == AttendanceStatus.HALF_DAY) paymentStr = (defaultRate / 2).toLong().toString()
-                                    if (st == AttendanceStatus.WORKED) paymentStr = defaultRate.toLong().toString()
-                                },
-                                label = { Text(label) }
-                            )
-                        }
-                    }
-
-                    AmountInputField(
-                        value = paymentStr,
-                        onValueChange = { paymentStr = it },
-                        label = "Kunlik stavka"
-                    )
-
-                    // KROSS-OBYEKT KASSA SELEKTORI
-                    if (availableObjects.isNotEmpty()) {
-                        val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
-                        val currentObj = availableObjects.find { it.id == currentObjectId }
-                        val displayName = selectedObj?.name ?: "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"
-
-                        ExposedDropdownMenuBox(
-                            expanded = isObjectMenuExpanded,
-                            onExpandedChange = { isObjectMenuExpanded = !isObjectMenuExpanded }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            OutlinedTextField(
-                                value = displayName,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("To'lov manbasi (Obyekt kassasi)") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isObjectMenuExpanded) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor(),
-                                shape = RoundedCornerShape(12.dp)
+                            Text(
+                                text = if (existingRecord != null) "Davomatni Tahrirlash" else "Davomat Kiritish",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = DeepBluePrimary
                             )
-
-                            ExposedDropdownMenu(
-                                expanded = isObjectMenuExpanded,
-                                onDismissRequest = { isObjectMenuExpanded = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)") },
-                                    onClick = {
-                                        selectedPayerObjectId = null
-                                        isObjectMenuExpanded = false
-                                    }
-                                )
-                                availableObjects.filter { it.id != currentObjectId }.forEach { objItem ->
-                                    DropdownMenuItem(
-                                        text = { Text("${objItem.name} kassasidan") },
-                                        onClick = {
-                                            selectedPayerObjectId = objItem.id
-                                            isObjectMenuExpanded = false
-                                        }
-                                    )
+                            if (hasAnyRecords) {
+                                TextButton(onClick = { isEditingAttendanceForm = false }) {
+                                    Text("Bekor qilish", color = TextSecondary)
                                 }
                             }
                         }
-                    }
 
-                    OutlinedTextField(
-                        value = note,
-                        onValueChange = { note = it },
-                        label = { Text("Izoh (ixtiyoriy)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(
+                                AttendanceStatus.WORKED to "Ishladi",
+                                AttendanceStatus.HALF_DAY to "Yarim kun",
+                                AttendanceStatus.ABSENT to "Kelmadi"
+                            ).forEach { (st, label) ->
+                                FilterChip(
+                                    selected = status == st,
+                                    onClick = {
+                                        status = st
+                                        if (st == AttendanceStatus.ABSENT) paymentStr = "0"
+                                        if (st == AttendanceStatus.HALF_DAY) paymentStr = (defaultRate / 2).toLong().toString()
+                                        if (st == AttendanceStatus.WORKED) paymentStr = defaultRate.toLong().toString()
+                                    },
+                                    label = { Text(label) }
+                                )
+                            }
+                        }
 
-                    var isSaving by remember { mutableStateOf(false) }
+                        AmountInputField(
+                            value = paymentStr,
+                            onValueChange = { paymentStr = it },
+                            label = "Kunlik stavka"
+                        )
 
-                    // TUGMALAR LOGIKASI
-                    if (!isEditMode) {
+                        // KROSS-OBYEKT KASSA SELEKTORI
+                        if (availableObjects.isNotEmpty()) {
+                            val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
+                            val currentObj = availableObjects.find { it.id == currentObjectId }
+                            val displayName = selectedObj?.name ?: "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"
+
+                            ExposedDropdownMenuBox(
+                                expanded = isObjectMenuExpanded,
+                                onExpandedChange = { isObjectMenuExpanded = !isObjectMenuExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = displayName,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("To'lov manbasi (Obyekt kassasi)") },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isObjectMenuExpanded) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .menuAnchor(),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+
+                                ExposedDropdownMenu(
+                                    expanded = isObjectMenuExpanded,
+                                    onDismissRequest = { isObjectMenuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)") },
+                                        onClick = {
+                                            selectedPayerObjectId = null
+                                            isObjectMenuExpanded = false
+                                        }
+                                    )
+                                    availableObjects.filter { it.id != currentObjectId }.forEach { objItem ->
+                                        DropdownMenuItem(
+                                            text = { Text("${objItem.name} kassasidan") },
+                                            onClick = {
+                                                selectedPayerObjectId = objItem.id
+                                                isObjectMenuExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = note,
+                            onValueChange = { note = it },
+                            label = { Text("Izoh (ixtiyoriy)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        var isSaving by remember { mutableStateOf(false) }
+
+                        // TUGMALAR
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -753,153 +788,161 @@ fun DayDetailBottomSheet(
                                 Text("Qarzga yozish", color = DeepBluePrimary, fontSize = 13.sp)
                             }
                         }
-                    } else {
-                        Button(
-                            onClick = {
-                                if (!isSaving) {
-                                    isSaving = true
-                                    val amt = paymentStr.toDoubleOrNull() ?: 0.0
-                                    onSaveDay(status, amt, isDayPaid, note.trim().ifBlank { null }, selectedPayerObjectId)
-                                    onDismiss()
-                                }
-                            },
-                            enabled = !isSaving,
-                            modifier = Modifier.fillMaxWidth().height(46.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = DeepBluePrimary, contentColor = Color.White)
+                    }
+                }
+            } else {
+                // HOLAT 2: Shu kuni to'lov/davomat/bonus bo'lsa -> FAQAT RO'YXAT VA TAFSILOTLAR CHIQADI!
+
+                // 1. DAVOMAT KARTOCHKASI (Agar davomat bo'lsa)
+                if (existingRecord != null) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isDayUnpaid) AmberLight.copy(alpha = 0.4f) else SurfaceLight
+                        ),
+                        border = CardDefaults.outlinedCardBorder().copy(
+                            brush = androidx.compose.ui.graphics.SolidColor(if (isDayUnpaid) AmberWarning.copy(alpha = 0.5f) else BorderColor)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("O'zgarishlarni saqlash", color = Color.White, fontSize = 13.sp)
-                        }
-
-                        if (isDayUnpaid && existingRecord != null) {
-                            Button(
-                                onClick = {
-                                    if (!isSaving) {
-                                        isSaving = true
-                                        onPayDaySalary(existingRecord, selectedPayerObjectId)
-                                        onDismiss()
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = when (existingRecord.status) {
+                                            AttendanceStatus.WORKED -> "Ishladi (To'liq kun)"
+                                            AttendanceStatus.HALF_DAY -> "Yarim kun"
+                                            AttendanceStatus.ABSENT -> "Kelmadi"
+                                            else -> "Boshqa"
+                                        },
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = TextPrimary
+                                    )
+                                    if (isDayUnpaid) {
+                                        Text(text = "Qarz", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = AmberWarning)
+                                    } else if (isDayPaid) {
+                                        Text(text = "To'langan", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = EmeraldSuccess)
                                     }
-                                },
-                                enabled = !isSaving,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(44.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess, contentColor = Color.White)
-                            ) {
-                                Icon(imageVector = Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Ish haqini to'lash (Pul berildi)", color = Color.White, fontSize = 13.sp)
+                                }
+                                Text(
+                                    text = "Stavka: " + CurrencyFormatter.formatAmount(existingRecord.paymentAmount),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = DeepBluePrimary
+                                )
+                                if (!existingRecord.note.isNullOrBlank()) {
+                                    Text(text = existingRecord.note, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                }
                             }
-                        } else if (isDayPaid && existingRecord != null) {
-                            OutlinedButton(
-                                onClick = {
-                                    if (!isSaving) {
-                                        isSaving = true
-                                        onMarkDayUnpaid(existingRecord)
-                                        onDismiss()
-                                    }
-                                },
-                                enabled = !isSaving,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(44.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberWarning)
-                            ) {
-                                Text("Qarzga o'tkazish", color = AmberWarning, fontSize = 13.sp)
-                            }
-                        }
 
-                        if (onDeleteDay != null && existingRecord != null) {
-                            TextButton(
-                                onClick = { onDeleteDay(existingRecord) },
-                                modifier = Modifier.align(Alignment.CenterHorizontally)
-                            ) {
-                                Icon(imageVector = Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp), tint = RoseExpense)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Davomatni o'chirish", color = RoseExpense, fontSize = 13.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isDayUnpaid) {
+                                    IconButton(onClick = { onPayDaySalary(existingRecord, null) }) {
+                                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = "To'lash", tint = EmeraldSuccess, modifier = Modifier.size(20.dp))
+                                    }
+                                } else if (isDayPaid) {
+                                    IconButton(onClick = { onMarkDayUnpaid(existingRecord) }) {
+                                        Icon(imageVector = Icons.Default.Pending, contentDescription = "Qarz qilish", tint = AmberWarning, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+
+                                IconButton(onClick = { isEditingAttendanceForm = true }) {
+                                    Icon(imageVector = Icons.Default.Edit, contentDescription = "Tahrirlash", tint = DeepBluePrimary, modifier = Modifier.size(18.dp))
+                                }
+
+                                if (onDeleteDay != null) {
+                                    IconButton(onClick = { onDeleteDay(existingRecord) }) {
+                                        Icon(imageVector = Icons.Default.Delete, contentDescription = "O'chirish", tint = RoseExpense, modifier = Modifier.size(18.dp))
+                                    }
+                                }
                             }
                         }
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = { isEditingAttendanceForm = true },
+                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Shu kunga Davomat kiritish")
                     }
                 }
-            }
 
-            // 2. BO'LIM: SHU KUNI BERILGAN TO'LOVLAR & AVANSLAR
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = SurfaceVariantLight.copy(alpha = 0.5f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                // 2. BO'LIM: SHU KUNI BERILGAN TO'LOVLAR & AVANSLAR
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceVariantLight.copy(alpha = 0.5f))
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = "To'lovlar va Avanslar (${directPayments.size})",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = DeepBluePrimary
-                        )
-                        IconButton(onClick = onAddPaymentClick) {
-                            Icon(imageVector = Icons.Default.AddCircle, contentDescription = "To'lov qo'shish", tint = EmeraldSuccess)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "To'lovlar va Avanslar (${directPayments.size})",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = DeepBluePrimary
+                            )
+                            IconButton(onClick = onAddPaymentClick) {
+                                Icon(imageVector = Icons.Default.AddCircle, contentDescription = "To'lov qo'shish", tint = EmeraldSuccess)
+                            }
                         }
-                    }
 
-                    if (directPayments.isEmpty()) {
-                        Text(text = "Ushbu kunda to'lovlar qayd qilinmagan.", style = MaterialTheme.typography.bodySmall, color = TextMuted)
-                    } else {
-                        directPayments.forEach { payment ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(containerColor = SurfaceLight)
-                            ) {
-                                Row(
+                        if (directPayments.isEmpty()) {
+                            Text(text = "Ushbu kunda to'lovlar qayd qilinmagan.", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                        } else {
+                            directPayments.forEach { payment ->
+                                Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .clickable { onEditPaymentClick(payment) },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = CardDefaults.cardColors(containerColor = SurfaceLight)
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = when (payment.type) {
-                                                PaymentType.SALARY -> "Ish haqi"
-                                                PaymentType.ADVANCE -> "Avans"
-                                                else -> "To'lov"
-                                            } + ": " + CurrencyFormatter.formatAmount(payment.amount),
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = EmeraldSuccess
-                                        )
-                                        if (!payment.description.isNullOrBlank()) {
-                                            Text(text = payment.description, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                                        }
-                                    }
-
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        // Qarz qilish (to'lovni bekor qilish)
-                                        IconButton(onClick = { onDeletePaymentClick(payment) }) {
-                                            Icon(
-                                                imageVector = Icons.Default.Pending,
-                                                contentDescription = "Qarz qilish",
-                                                tint = AmberWarning,
-                                                modifier = Modifier.size(20.dp)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = when (payment.type) {
+                                                    PaymentType.SALARY -> "Ish haqi"
+                                                    PaymentType.ADVANCE -> "Avans"
+                                                    else -> "To'lov"
+                                                } + ": " + CurrencyFormatter.formatAmount(payment.amount),
+                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = EmeraldSuccess
                                             )
+                                            if (!payment.description.isNullOrBlank()) {
+                                                Text(text = payment.description, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                            }
                                         }
 
-                                        // Tahrirlash
-                                        IconButton(onClick = { onEditPaymentClick(payment) }) {
-                                            Icon(imageVector = Icons.Default.Edit, contentDescription = "Tahrirlash", tint = DeepBluePrimary, modifier = Modifier.size(18.dp))
-                                        }
-
-                                        // O'chirish
-                                        IconButton(onClick = { onDeletePaymentClick(payment) }) {
-                                            Icon(imageVector = Icons.Default.Delete, contentDescription = "O'chirish", tint = RoseExpense, modifier = Modifier.size(18.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(onClick = { onEditPaymentClick(payment) }) {
+                                                Icon(imageVector = Icons.Default.Edit, contentDescription = "Tahrirlash", tint = DeepBluePrimary, modifier = Modifier.size(18.dp))
+                                            }
+                                            IconButton(onClick = { onDeletePaymentClick(payment) }) {
+                                                Icon(imageVector = Icons.Default.Delete, contentDescription = "O'chirish", tint = RoseExpense, modifier = Modifier.size(18.dp))
+                                            }
                                         }
                                     }
                                 }
@@ -907,110 +950,105 @@ fun DayDetailBottomSheet(
                         }
                     }
                 }
-            }
 
-            // 3. BO'LIM: SHU KUNI BERILGAN BONUSLAR
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = SurfaceVariantLight.copy(alpha = 0.5f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                // 3. BO'LIM: SHU KUNI BERILGAN BONUSLAR
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceVariantLight.copy(alpha = 0.5f))
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = "Bonuslar (${displayBonusItems.size})",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = DeepBluePrimary
-                        )
-                        IconButton(onClick = onAddBonusClick) {
-                            Icon(imageVector = Icons.Default.AddCircle, contentDescription = "Bonus qo'shish", tint = DeepBluePrimary)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Bonuslar (${displayBonusItems.size})",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = DeepBluePrimary
+                            )
+                            IconButton(onClick = onAddBonusClick) {
+                                Icon(imageVector = Icons.Default.AddCircle, contentDescription = "Bonus qo'shish", tint = DeepBluePrimary)
+                            }
                         }
-                    }
 
-                    if (displayBonusItems.isEmpty()) {
-                        Text(text = "Ushbu kunda bonuslar yo'q.", style = MaterialTheme.typography.bodySmall, color = TextMuted)
-                    } else {
-                        displayBonusItems.forEach { bonusItem ->
-                            val isPaid = bonusItem.isPaid
-                            val itemColor = if (isPaid) EmeraldSuccess else AmberWarning
+                        if (displayBonusItems.isEmpty()) {
+                            Text(text = "Ushbu kunda bonuslar yo'q.", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                        } else {
+                            displayBonusItems.forEach { bonusItem ->
+                                val isPaid = bonusItem.isPaid
+                                val itemColor = if (isPaid) EmeraldSuccess else AmberWarning
 
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isPaid) SurfaceLight else AmberLight.copy(alpha = 0.35f)
-                                ),
-                                border = if (!isPaid) CardDefaults.outlinedCardBorder().copy(
-                                    brush = androidx.compose.ui.graphics.SolidColor(AmberWarning.copy(alpha = 0.6f))
-                                ) else null
-                            ) {
-                                Row(
+                                Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Bonus: " + CurrencyFormatter.formatAmount(bonusItem.amount),
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = itemColor
-                                        )
-                                        if (!bonusItem.reason.isNullOrBlank()) {
-                                            Text(text = bonusItem.reason, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                                        }
-                                    }
-
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        // Yagona Iconli Holat Tugmasi (To'lash / Qarz qilish)
-                                        if (!isPaid && bonusItem.rawGeneralBonus != null) {
-                                            IconButton(onClick = { onPayBonus(bonusItem.rawGeneralBonus, null) }) {
-                                                Icon(
-                                                    imageVector = Icons.Default.CheckCircle,
-                                                    contentDescription = "To'lash",
-                                                    tint = EmeraldSuccess,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                        } else if (isPaid && bonusItem.rawGeneralBonus != null) {
-                                            IconButton(onClick = { onMarkBonusUnpaid(bonusItem.rawGeneralBonus) }) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Pending,
-                                                    contentDescription = "Qarz qilish",
-                                                    tint = AmberWarning,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                        }
-
-                                        // Tahrirlash
-                                        IconButton(onClick = {
+                                        .clickable {
                                             if (bonusItem.rawGeneralBonus != null) {
                                                 onEditBonusClick(bonusItem.rawGeneralBonus)
                                             } else if (bonusItem.rawPayment != null) {
                                                 onEditPaymentClick(bonusItem.rawPayment)
                                             }
-                                        }) {
-                                            Icon(imageVector = Icons.Default.Edit, contentDescription = "Tahrirlash", tint = DeepBluePrimary, modifier = Modifier.size(18.dp))
+                                        },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isPaid) SurfaceLight else AmberLight.copy(alpha = 0.35f)
+                                    ),
+                                    border = if (!isPaid) CardDefaults.outlinedCardBorder().copy(
+                                        brush = androidx.compose.ui.graphics.SolidColor(AmberWarning.copy(alpha = 0.6f))
+                                    ) else null
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Bonus: " + CurrencyFormatter.formatAmount(bonusItem.amount),
+                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = itemColor
+                                            )
+                                            if (!bonusItem.reason.isNullOrBlank()) {
+                                                Text(text = bonusItem.reason, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                            }
                                         }
 
-                                        // O'chirish
-                                        IconButton(onClick = {
-                                            if (bonusItem.rawGeneralBonus != null) {
-                                                onDeleteBonusClick(bonusItem.rawGeneralBonus)
-                                            } else if (bonusItem.rawPayment != null) {
-                                                onDeletePaymentClick(bonusItem.rawPayment)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (!isPaid && bonusItem.rawGeneralBonus != null) {
+                                                IconButton(onClick = { onPayBonus(bonusItem.rawGeneralBonus, null) }) {
+                                                    Icon(imageVector = Icons.Default.CheckCircle, contentDescription = "To'lash", tint = EmeraldSuccess, modifier = Modifier.size(20.dp))
+                                                }
+                                            } else if (isPaid && bonusItem.rawGeneralBonus != null) {
+                                                IconButton(onClick = { onMarkBonusUnpaid(bonusItem.rawGeneralBonus) }) {
+                                                    Icon(imageVector = Icons.Default.Pending, contentDescription = "Qarz qilish", tint = AmberWarning, modifier = Modifier.size(20.dp))
+                                                }
                                             }
-                                        }) {
-                                            Icon(imageVector = Icons.Default.Delete, contentDescription = "O'chirish", tint = RoseExpense, modifier = Modifier.size(18.dp))
+
+                                            IconButton(onClick = {
+                                                if (bonusItem.rawGeneralBonus != null) {
+                                                    onEditBonusClick(bonusItem.rawGeneralBonus)
+                                                } else if (bonusItem.rawPayment != null) {
+                                                    onEditPaymentClick(bonusItem.rawPayment)
+                                                }
+                                            }) {
+                                                Icon(imageVector = Icons.Default.Edit, contentDescription = "Tahrirlash", tint = DeepBluePrimary, modifier = Modifier.size(18.dp))
+                                            }
+
+                                            IconButton(onClick = {
+                                                if (bonusItem.rawGeneralBonus != null) {
+                                                    onDeleteBonusClick(bonusItem.rawGeneralBonus)
+                                                } else if (bonusItem.rawPayment != null) {
+                                                    onDeletePaymentClick(bonusItem.rawPayment)
+                                                }
+                                            }) {
+                                                Icon(imageVector = Icons.Default.Delete, contentDescription = "O'chirish", tint = RoseExpense, modifier = Modifier.size(18.dp))
+                                            }
                                         }
                                     }
                                 }
