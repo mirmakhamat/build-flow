@@ -163,7 +163,7 @@ fun WorkersScreen(
         ImportWorkerBottomSheet(
             importableWorkers = uiState.importableWorkers,
             onDismiss = { viewModel.closeImportWorkerSheet() },
-            onSelectWorker = { w -> viewModel.importWorkerToCurrentObject(w) }
+            onImportWorkers = { list -> viewModel.importWorkersToCurrentObject(list) }
         )
     }
 }
@@ -246,9 +246,10 @@ fun WorkerCard(
 fun ImportWorkerBottomSheet(
     importableWorkers: List<ImportableWorkerItem>,
     onDismiss: () -> Unit,
-    onSelectWorker: (Worker) -> Unit
+    onImportWorkers: (List<Worker>) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    var selectedWorkerIds by remember { mutableStateOf(setOf<String>()) }
 
     val filteredList = remember(importableWorkers, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -284,7 +285,7 @@ fun ImportWorkerBottomSheet(
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     )
                     Text(
-                        text = "Kerakli ishchini tanlang, u shu obyektda ham paydo bo'ladi",
+                        text = "Kerakli ishchilarni tanlang (bir yoki bir nechta)",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -294,15 +295,40 @@ fun ImportWorkerBottomSheet(
                 }
             }
 
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Ishchi ismi yoki mutaxassisligi...") },
-                leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null) },
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
-            )
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Qidirish...") },
+                    leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null) },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Barchasini tanlash / Tozalash
+                TextButton(
+                    onClick = {
+                        if (selectedWorkerIds.size == filteredList.size) {
+                            selectedWorkerIds = emptySet()
+                        } else {
+                            selectedWorkerIds = filteredList.map { it.worker.id }.toSet()
+                        }
+                    }
+                ) {
+                    Text(
+                        text = if (selectedWorkerIds.size == filteredList.size && filteredList.isNotEmpty()) "Tozalash" else "Barchasi",
+                        fontWeight = FontWeight.Bold,
+                        color = DeepBluePrimary
+                    )
+                }
+            }
 
             if (filteredList.isEmpty()) {
                 Box(
@@ -317,18 +343,28 @@ fun ImportWorkerBottomSheet(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 380.dp),
+                        .heightIn(max = 350.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredList, key = { it.worker.id }) { item ->
+                        val isSelected = selectedWorkerIds.contains(item.worker.id)
+
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onSelectWorker(item.worker) },
+                                .clickable {
+                                    selectedWorkerIds = if (isSelected) {
+                                        selectedWorkerIds - item.worker.id
+                                    } else {
+                                        selectedWorkerIds + item.worker.id
+                                    }
+                                },
                             shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = SurfaceVariantLight.copy(alpha = 0.6f)),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isSelected) DeepBluePrimary.copy(alpha = 0.08f) else SurfaceVariantLight.copy(alpha = 0.6f)
+                            ),
                             border = CardDefaults.outlinedCardBorder().copy(
-                                brush = androidx.compose.ui.graphics.SolidColor(BorderColor)
+                                brush = androidx.compose.ui.graphics.SolidColor(if (isSelected) DeepBluePrimary else BorderColor)
                             )
                         ) {
                             Row(
@@ -342,19 +378,17 @@ fun ImportWorkerBottomSheet(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                            .background(DeepBluePrimary.copy(alpha = 0.1f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = item.worker.name.take(1).uppercase(),
-                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = DeepBluePrimary
-                                        )
-                                    }
+                                    Checkbox(
+                                        checked = isSelected,
+                                        onCheckedChange = {
+                                            selectedWorkerIds = if (isSelected) {
+                                                selectedWorkerIds - item.worker.id
+                                            } else {
+                                                selectedWorkerIds + item.worker.id
+                                            }
+                                        },
+                                        colors = CheckboxDefaults.colors(checkedColor = DeepBluePrimary)
+                                    )
 
                                     Column {
                                         Text(
@@ -368,23 +402,40 @@ fun ImportWorkerBottomSheet(
                                             color = TextSecondary
                                         )
                                         Text(
-                                            text = "Asosiy obyekt: ${item.sourceObjectName}",
+                                            text = "Asosiy obyekti: ${item.sourceObjectName}",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = DeepBlueLight
                                         )
                                     }
                                 }
-
-                                Icon(
-                                    imageVector = Icons.Default.AddCircleOutline,
-                                    contentDescription = "Qo'shish",
-                                    tint = EmeraldSuccess,
-                                    modifier = Modifier.size(24.dp)
-                                )
                             }
                         }
                     }
                 }
+            }
+
+            // BIRIKTIRISHNI TASDIQLASH TUGMASI
+            Button(
+                onClick = {
+                    val chosen = importableWorkers.map { it.worker }.filter { selectedWorkerIds.contains(it.id) }
+                    if (chosen.isNotEmpty()) {
+                        onImportWorkers(chosen)
+                    }
+                },
+                enabled = selectedWorkerIds.isNotEmpty(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess, contentColor = Color.White)
+            ) {
+                Icon(imageVector = Icons.Default.PersonAddAlt1, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (selectedWorkerIds.isEmpty()) "Ishchini tanlang" else "Tanlangan (${selectedWorkerIds.size}) ishchini qo'shish",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))

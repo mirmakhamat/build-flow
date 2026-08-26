@@ -146,23 +146,31 @@ class WorkersViewModel(
         _uiState.update { it.copy(isImportSheetOpen = false) }
     }
 
-    fun importWorkerToCurrentObject(sourceWorker: Worker) {
+    fun importWorkersToCurrentObject(sourceWorkers: List<Worker>) {
         viewModelScope.launch {
             val targetObjectId = _uiState.value.selectedObjectId ?: return@launch
-            val newWorker = Worker(
-                objectId = targetObjectId,
-                name = sourceWorker.name,
-                phone = sourceWorker.phone,
-                position = sourceWorker.position,
-                defaultRate = sourceWorker.defaultRate,
-                startDate = DateUtil.today()
-            )
-            workerRepository.insertWorker(newWorker)
+            if (sourceWorkers.isEmpty()) return@launch
+
+            sourceWorkers.forEach { sourceWorker ->
+                val newWorker = Worker(
+                    objectId = targetObjectId,
+                    name = sourceWorker.name,
+                    phone = sourceWorker.phone,
+                    position = sourceWorker.position,
+                    defaultRate = sourceWorker.defaultRate,
+                    startDate = DateUtil.today()
+                )
+                workerRepository.insertWorker(newWorker)
+            }
 
             _uiState.update {
                 it.copy(
                     isImportSheetOpen = false,
-                    successMessage = "${sourceWorker.name} ushbu obyektga ham biriktirildi!"
+                    successMessage = if (sourceWorkers.size == 1) {
+                        "${sourceWorkers.first().name} ushbu obyektga ham biriktirildi!"
+                    } else {
+                        "${sourceWorkers.size} nafar ishchi ushbu obyektga ham biriktirildi!"
+                    }
                 )
             }
 
