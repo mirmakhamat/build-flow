@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import uz.buildflow.app.core.theme.*
@@ -147,10 +148,12 @@ fun IncomesScreen(
     if (uiState.isAddSheetOpen) {
         AddIncomeSheet(
             existingTransaction = uiState.selectedTransaction,
+            availableObjects = uiState.availableObjects,
+            currentObjectId = uiState.selectedObjectId ?: "",
             onDismiss = { viewModel.closeAddIncome() },
             onDelete = { tx -> viewModel.deleteTransaction(tx) },
-            onSave = { amt, date, desc ->
-                viewModel.saveIncome(amt, date, desc)
+            onSave = { amt, date, desc, sourceObjId ->
+                viewModel.saveIncome(amt, date, desc, sourceObjId)
             }
         )
     }
@@ -161,12 +164,19 @@ fun IncomeItemCard(
     tx: MoneyTransaction,
     onClick: () -> Unit
 ) {
+    val isTransfer = tx.description?.startsWith("[") == true && tx.description.contains("kassasidan o'tkazma")
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceLight)
+        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
+        border = if (isTransfer) CardDefaults.outlinedCardBorder().copy(
+            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFF8B5CF6).copy(alpha = 0.5f))
+        ) else CardDefaults.outlinedCardBorder().copy(
+            brush = androidx.compose.ui.graphics.SolidColor(BorderColor)
+        )
     ) {
         Row(
             modifier = Modifier
@@ -176,32 +186,37 @@ fun IncomeItemCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
+                if (isTransfer) {
+                    Surface(
+                        color = Color(0xFFEDE9FE),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    ) {
+                        Text(
+                            text = "Kassalararo o'tkazma",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF8B5CF6),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
                 Text(
                     text = tx.description ?: "Mijoz to'lovi / Avans",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                     color = TextPrimary
                 )
                 Text(
-                    text = DateUtil.formatToDisplay(tx.date),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = TextMuted
+                    text = DateUtil.formatToFullDisplay(tx.date),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary
                 )
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "+${CurrencyFormatter.formatAmount(tx.amount)}",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = EmeraldSuccess
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Tahrirlash",
-                    tint = TextMuted,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
+            Text(
+                text = "+ " + CurrencyFormatter.formatAmount(tx.amount),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = EmeraldSuccess
+            )
         }
     }
 }

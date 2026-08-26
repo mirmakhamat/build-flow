@@ -197,11 +197,19 @@ fun AppNavigation(
             // 5. OBYEKT MOLIYAVIY HISOBOTI (Faqat shu tanlangan obyekt uchun)
             composable("object_reports/{objectId}") { backStackEntry ->
                 val objectId = backStackEntry.arguments?.getString("objectId") ?: return@composable
-                val summaryState = produceState<uz.buildflow.app.domain.model.ObjectFinancialSummary?>(initialValue = null, objectId) {
-                    container.getObjectFinancialSummaryUseCase(objectId).collect { value = it }
-                }
+                val viewModel: uz.buildflow.app.presentation.reports.ReportsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = uz.buildflow.app.presentation.reports.ReportsViewModel.provideFactory(
+                        objectId = objectId,
+                        getObjectFinancialSummaryUseCase = container.getObjectFinancialSummaryUseCase,
+                        transactionRepository = container.transactionRepository,
+                        expenseRepository = container.expenseRepository,
+                        workerRepository = container.workerRepository,
+                        getWorkerStatsUseCase = container.getWorkerStatsUseCase,
+                        objectRepository = container.objectRepository
+                    )
+                )
                 ReportsScreen(
-                    summary = summaryState.value,
+                    viewModel = viewModel,
                     onBackToObjects = {
                         navController.navigate("objects") {
                             popUpTo("objects") { inclusive = true }
@@ -216,6 +224,7 @@ fun AppNavigation(
                 val viewModel: IncomesViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                     factory = IncomesViewModel.provideFactory(
                         container.transactionRepository,
+                        container.expenseRepository,
                         container.objectRepository,
                         objectId
                     )

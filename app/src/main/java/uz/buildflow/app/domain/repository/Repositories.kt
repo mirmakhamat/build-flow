@@ -64,6 +64,7 @@ interface ExpenseRepository {
     suspend fun insertExpense(expense: Expense)
     suspend fun updateExpense(expense: Expense)
     suspend fun deleteExpense(expense: Expense)
+    suspend fun deleteExpenseById(id: String)
 }
 
 interface TransactionRepository {

@@ -189,6 +189,9 @@ interface ExpenseDao {
     @Update
     suspend fun updateExpense(expense: ExpenseEntity)
 
+    @Query("DELETE FROM expenses WHERE id = :id")
+    suspend fun deleteExpenseById(id: String)
+
     @Delete
     suspend fun deleteExpense(expense: ExpenseEntity)
 }

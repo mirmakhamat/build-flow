@@ -150,6 +150,7 @@ class ExpenseRepositoryImpl(private val expenseDao: ExpenseDao) : ExpenseReposit
     override suspend fun insertExpense(expense: Expense) = expenseDao.insertExpense(expense.toEntity())
     override suspend fun updateExpense(expense: Expense) = expenseDao.updateExpense(expense.toEntity())
     override suspend fun deleteExpense(expense: Expense) = expenseDao.deleteExpense(expense.toEntity())
+    override suspend fun deleteExpenseById(id: String) = expenseDao.deleteExpenseById(id)
 }
 
 class TransactionRepositoryImpl(

@@ -8,14 +8,17 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.BuildObject
+import uz.buildflow.app.domain.model.Expense
 import uz.buildflow.app.domain.model.MoneyTransaction
 import uz.buildflow.app.domain.model.TransactionType
+import uz.buildflow.app.domain.repository.ExpenseRepository
 import uz.buildflow.app.domain.repository.ObjectRepository
 import uz.buildflow.app.domain.repository.TransactionRepository
 
 data class IncomesUiState(
     val transactions: List<MoneyTransaction> = emptyList(),
     val currentObject: BuildObject? = null,
+    val availableObjects: List<BuildObject> = emptyList(),
     val totalIncome: Double = 0.0,
     val selectedObjectId: String? = null,
     val selectedTransaction: MoneyTransaction? = null,
@@ -32,6 +35,7 @@ data class IncomesUiState(
 
 class IncomesViewModel(
     private val transactionRepository: TransactionRepository,
+    private val expenseRepository: ExpenseRepository,
     private val objectRepository: ObjectRepository,
     initialObjectId: String? = null
 ) : ViewModel() {
@@ -62,12 +66,14 @@ class IncomesViewModel(
             combine(
                 transactionRepository.getTransactionsByObject(objectId),
                 transactionRepository.getTotalIncomeByObject(objectId),
-                objectRepository.getObjectById(objectId)
-            ) { list, total, obj ->
+                objectRepository.getObjectById(objectId),
+                objectRepository.getAllObjects()
+            ) { list, total, obj, allObjs ->
                 IncomesUiState(
                     transactions = list,
                     totalIncome = total,
                     currentObject = obj,
+                    availableObjects = allObjs,
                     selectedObjectId = objectId,
                     selectedTransaction = _uiState.value.selectedTransaction,
                     isAddSheetOpen = _uiState.value.isAddSheetOpen,
@@ -92,10 +98,12 @@ class IncomesViewModel(
         _uiState.update { it.copy(isAddSheetOpen = false, selectedTransaction = null) }
     }
 
-    fun saveIncome(amount: Double, date: String, description: String?) {
+    fun saveIncome(amount: Double, date: String, description: String?, sourceObjectId: String? = null) {
         viewModelScope.launch {
             val objectId = _uiState.value.selectedObjectId ?: return@launch
             val existing = _uiState.value.selectedTransaction
+            val allObjs = _uiState.value.availableObjects
+            val currentObj = allObjs.find { it.id == objectId }
 
             if (existing != null) {
                 val updated = existing.copy(
@@ -104,15 +112,52 @@ class IncomesViewModel(
                     description = description
                 )
                 transactionRepository.updateTransaction(updated)
+
+                // Agar bu o'tkazma bo'lsa, bog'langan xarajatni ham yangilaymiz
+                val linkedExpenseId = "exp_tr_${existing.id}"
+                if (sourceObjectId != null) {
+                    val sourceObj = allObjs.find { it.id == sourceObjectId }
+                    val linkedExp = Expense(
+                        id = linkedExpenseId,
+                        objectId = sourceObjectId,
+                        payerObjectId = sourceObjectId,
+                        category = "Kassalararo o'tkazma",
+                        amount = amount,
+                        date = date.ifBlank { DateUtil.today() },
+                        description = "[${currentObj?.name ?: "Boshqa obyekt"} kassasiga o'tkazma] ${description ?: ""}".trim()
+                    )
+                    expenseRepository.insertExpense(linkedExp)
+                }
             } else {
+                val finalDesc = if (sourceObjectId != null) {
+                    val sourceObj = allObjs.find { it.id == sourceObjectId }
+                    "[${sourceObj?.name ?: "Boshqa obyekt"} kassasidan o'tkazma] ${description ?: ""}".trim()
+                } else {
+                    description
+                }
+
                 val tx = MoneyTransaction(
                     objectId = objectId,
                     type = TransactionType.INCOME,
                     amount = amount,
                     date = date.ifBlank { DateUtil.today() },
-                    description = description
+                    description = finalDesc
                 )
                 transactionRepository.insertTransaction(tx)
+
+                // Chiqim qiluvchi obyektda xarajat yaratamiz
+                if (sourceObjectId != null) {
+                    val linkedExp = Expense(
+                        id = "exp_tr_${tx.id}",
+                        objectId = sourceObjectId,
+                        payerObjectId = sourceObjectId,
+                        category = "Kassalararo o'tkazma",
+                        amount = amount,
+                        date = date.ifBlank { DateUtil.today() },
+                        description = "[${currentObj?.name ?: "Boshqa obyekt"} kassasiga o'tkazma] ${description ?: ""}".trim()
+                    )
+                    expenseRepository.insertExpense(linkedExp)
+                }
             }
             closeAddIncome()
         }
@@ -121,6 +166,8 @@ class IncomesViewModel(
     fun deleteTransaction(tx: MoneyTransaction) {
         viewModelScope.launch {
             transactionRepository.deleteTransaction(tx)
+            // Bog'langan xarajatni ham o'chiramiz
+            expenseRepository.deleteExpenseById("exp_tr_${tx.id}")
             closeAddIncome()
         }
     }
@@ -128,12 +175,13 @@ class IncomesViewModel(
     companion object {
         fun provideFactory(
             transactionRepository: TransactionRepository,
+            expenseRepository: ExpenseRepository,
             objectRepository: ObjectRepository,
             initialObjectId: String? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return IncomesViewModel(transactionRepository, objectRepository, initialObjectId) as T
+                return IncomesViewModel(transactionRepository, expenseRepository, objectRepository, initialObjectId) as T
             }
         }
     }

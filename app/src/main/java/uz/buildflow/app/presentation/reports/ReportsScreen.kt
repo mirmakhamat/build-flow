@@ -1,7 +1,10 @@
 package uz.buildflow.app.presentation.reports
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,14 +24,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CurrencyFormatter
-import uz.buildflow.app.domain.model.ObjectFinancialSummary
+import uz.buildflow.app.core.util.DateUtil
+import uz.buildflow.app.domain.model.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsScreen(
-    summary: ObjectFinancialSummary?,
+    viewModel: ReportsViewModel,
     onBackToObjects: () -> Unit
 ) {
+    val uiState by viewModel.uiState.collectAsState()
+    val summary = uiState.summary
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -47,166 +54,287 @@ fun ReportsScreen(
             )
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .background(BackgroundLight)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 1. OBYEKTNING UMUMIY HOLATI VA RENTABELLIGI (Vizual grafiklar bilan)
-            if (summary != null) {
-                FinancialHealthCard(summary = summary)
-            }
-
-            // 2. KATEGORIYALAR BO'YICHA XARAJATLAR TAQSIMOTI GRAFIGI
-            if (summary != null && summary.categoryBreakdowns.isNotEmpty()) {
-                ExpenseDistributionChartCard(summary = summary)
-            }
-
-            // 3. TO'LIQ BATAFSIL MOLIYAVIY XULOSA
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = SurfaceLight),
-                border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderColor))
-            ) {
+            if (uiState.isLoading && summary == null) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = DeepBluePrimary)
+            } else {
                 Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text(
-                        text = summary?.objectName ?: "Obyekt Xulosasi",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                    )
-                    HorizontalDivider(color = BorderColor)
-
-                    // 1. Mijoz va Daromad qismi
-                    Text(
-                        text = "Mijoz To'lovlari va Qoldiq",
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                        color = DeepBluePrimary
-                    )
-                    BreakdownRow(
-                        title = "Obyekt umumiy narxi",
-                        amount = summary?.totalPrice ?: 0.0,
-                        isCustomText = (summary?.totalPrice ?: 0.0) <= 0.0,
-                        customText = "Kiritilmagan"
-                    )
-                    BreakdownRow(title = "Tushgan pul (Olingan avanslar)", amount = summary?.totalReceivedIncome ?: 0.0, customColor = EmeraldSuccess)
-                    BreakdownRow(
-                        title = "Mijozdan qolgan summa (Qoldiq)",
-                        amount = summary?.remainingReceivable ?: 0.0,
-                        customColor = if ((summary?.remainingReceivable ?: 0.0) > 0) AmberWarning else EmeraldSuccess,
-                        isCustomText = (summary?.totalPrice ?: 0.0) <= 0.0,
-                        customText = "—"
-                    )
-
-                    HorizontalDivider(color = BorderColor)
-
-                    // 2. Ishchilar qismi
-                    Text(
-                        text = "Ishchilar Hisob-kitobi",
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                        color = DeepBluePrimary
-                    )
-                    BreakdownRow(title = "Hisoblangan jami ish haqi", amount = summary?.totalWorkerSalary ?: 0.0)
-                    BreakdownRow(title = "Hisoblangan jami bonuslar", amount = summary?.totalBonuses ?: 0.0)
-                    BreakdownRow(title = "Ishchilarga berilgan to'lovlar (Jami)", amount = summary?.totalPaidToWorkers ?: 0.0, customColor = EmeraldSuccess)
-                    
-                    if ((summary?.totalPaidByOtherObjectsForThisWorkers ?: 0.0) > 0) {
-                        BreakdownRow(
-                            title = "  ↳ Boshqa obyekt hisobidan qoplangan",
-                            amount = summary?.totalPaidByOtherObjectsForThisWorkers ?: 0.0,
-                            customColor = DeepBluePrimary
+                    // 1. OBYEKTNING UMUMIY HOLATI VA RENTABELLIGI
+                    if (summary != null) {
+                        FinancialHealthCard(
+                            summary = summary,
+                            onIncomesClick = { viewModel.openDrillDown(DrillDownType.INCOMES) },
+                            onWorkerDebtsClick = { viewModel.openDrillDown(DrillDownType.WORKER_DEBTS) },
+                            onCashflowClick = { viewModel.openDrillDown(DrillDownType.CASH_OUTFLOW) }
                         )
                     }
 
-                    if ((summary?.totalPaidForOtherObjectsWorkers ?: 0.0) > 0) {
-                        BreakdownRow(
-                            title = "  ↳ Boshqa obyekt ishchilariga to'lab berilgan",
-                            amount = summary?.totalPaidForOtherObjectsWorkers ?: 0.0,
-                            customColor = AmberWarning
+                    // 2. KATEGORIYALAR BO'YICHA XARAJATLAR TAQSIMOTI GRAFIGI
+                    if (summary != null && summary.categoryBreakdowns.isNotEmpty()) {
+                        ExpenseDistributionChartCard(
+                            summary = summary,
+                            onCategoryClick = { catName ->
+                                viewModel.openDrillDown(DrillDownType.CATEGORY_EXPENSES, catName)
+                            }
                         )
                     }
 
-                    BreakdownRow(
-                        title = "Ishchilarga qolgan qarz",
-                        amount = summary?.totalWorkerDebt ?: 0.0,
-                        customColor = if ((summary?.totalWorkerDebt ?: 0.0) > 0) RoseExpense else EmeraldSuccess
-                    )
+                    // 3. TO'LIQ BATAFSIL MOLIYAVIY XULOSA (Barcha qatorlar bosiladigan!)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
+                        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderColor))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = summary?.objectName ?: "Obyekt Xulosasi",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                            )
+                            Text(
+                                text = "💡 Har qanday ko'rsatkich ustiga bosib, unga ta'sir qilgan barcha yozuvlarni ko'rishingiz mumkin.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = DeepBluePrimary
+                            )
+                            HorizontalDivider(color = BorderColor)
 
-                    HorizontalDivider(color = BorderColor)
+                            // 1. Mijoz va Daromad qismi
+                            Text(
+                                text = "Mijoz To'lovlari va Qoldiq",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = DeepBluePrimary
+                            )
+                            InteractiveBreakdownRow(
+                                title = "Obyekt umumiy narxi",
+                                amount = summary?.totalPrice ?: 0.0,
+                                isCustomText = (summary?.totalPrice ?: 0.0) <= 0.0,
+                                customText = "Kiritilmagan",
+                                isClickable = false
+                            )
+                            InteractiveBreakdownRow(
+                                title = "Tushgan pul (Olingan avanslar)",
+                                amount = summary?.totalReceivedIncome ?: 0.0,
+                                customColor = EmeraldSuccess,
+                                onClick = { viewModel.openDrillDown(DrillDownType.INCOMES) }
+                            )
+                            InteractiveBreakdownRow(
+                                title = "Mijozdan qolgan summa (Qoldiq)",
+                                amount = summary?.remainingReceivable ?: 0.0,
+                                customColor = if ((summary?.remainingReceivable ?: 0.0) > 0) AmberWarning else EmeraldSuccess,
+                                isCustomText = (summary?.totalPrice ?: 0.0) <= 0.0,
+                                customText = "—",
+                                onClick = { viewModel.openDrillDown(DrillDownType.INCOMES) }
+                            )
 
-                    // 3. Qo'shimcha Xarajatlar
-                    Text(
-                        text = "Qo'shimcha Xarajatlar Taqsimoti",
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                        color = DeepBluePrimary
-                    )
-                    if (summary?.categoryBreakdowns.isNullOrEmpty()) {
-                        BreakdownRow(title = "Boshqa xarajatlar", amount = summary?.totalOtherExpenses ?: 0.0)
-                    } else {
-                        summary?.categoryBreakdowns?.forEach { item ->
-                            BreakdownRow(title = item.categoryName, amount = item.totalAmount)
+                            HorizontalDivider(color = BorderColor)
+
+                            // 2. Ishchilar qismi
+                            Text(
+                                text = "Ishchilar Hisob-kitobi",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = DeepBluePrimary
+                            )
+                            InteractiveBreakdownRow(
+                                title = "Hisoblangan jami ish haqi",
+                                amount = summary?.totalWorkerSalary ?: 0.0,
+                                isClickable = false
+                            )
+                            InteractiveBreakdownRow(
+                                title = "Hisoblangan jami bonuslar",
+                                amount = summary?.totalBonuses ?: 0.0,
+                                isClickable = false
+                            )
+                            InteractiveBreakdownRow(
+                                title = "Ishchilarga berilgan to'lovlar (Jami)",
+                                amount = summary?.totalPaidToWorkers ?: 0.0,
+                                customColor = EmeraldSuccess,
+                                onClick = { viewModel.openDrillDown(DrillDownType.WORKER_PAYMENTS) }
+                            )
+                            
+                            if ((summary?.totalPaidByOtherObjectsForThisWorkers ?: 0.0) > 0) {
+                                InteractiveBreakdownRow(
+                                    title = "  ↳ Boshqa obyekt hisobidan qoplangan",
+                                    amount = summary?.totalPaidByOtherObjectsForThisWorkers ?: 0.0,
+                                    customColor = DeepBluePrimary,
+                                    onClick = { viewModel.openDrillDown(DrillDownType.WORKER_PAYMENTS) }
+                                )
+                            }
+
+                            if ((summary?.totalPaidForOtherObjectsWorkers ?: 0.0) > 0) {
+                                InteractiveBreakdownRow(
+                                    title = "  ↳ Boshqa obyekt ishchilariga to'lab berilgan",
+                                    amount = summary?.totalPaidForOtherObjectsWorkers ?: 0.0,
+                                    customColor = AmberWarning,
+                                    onClick = { viewModel.openDrillDown(DrillDownType.EXTERNAL_WORKERS_PAID) }
+                                )
+                            }
+
+                            InteractiveBreakdownRow(
+                                title = "Ishchilarga qolgan qarz",
+                                amount = summary?.totalWorkerDebt ?: 0.0,
+                                customColor = if ((summary?.totalWorkerDebt ?: 0.0) > 0) RoseExpense else EmeraldSuccess,
+                                onClick = { viewModel.openDrillDown(DrillDownType.WORKER_DEBTS) }
+                            )
+
+                            HorizontalDivider(color = BorderColor)
+
+                            // 3. Qo'shimcha Xarajatlar
+                            Text(
+                                text = "Qo'shimcha Xarajatlar Taqsimoti",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = DeepBluePrimary
+                            )
+                            if (summary?.categoryBreakdowns.isNullOrEmpty()) {
+                                InteractiveBreakdownRow(
+                                    title = "Boshqa xarajatlar",
+                                    amount = summary?.totalOtherExpenses ?: 0.0,
+                                    onClick = { viewModel.openDrillDown(DrillDownType.ALL_EXPENSES) }
+                                )
+                            } else {
+                                summary?.categoryBreakdowns?.forEach { item ->
+                                    InteractiveBreakdownRow(
+                                        title = item.categoryName,
+                                        amount = item.totalAmount,
+                                        onClick = { viewModel.openDrillDown(DrillDownType.CATEGORY_EXPENSES, item.categoryName) }
+                                    )
+                                }
+                            }
+
+                            if ((summary?.totalExpensesPaidByOtherObjects ?: 0.0) > 0) {
+                                InteractiveBreakdownRow(
+                                    title = "  ↳ Boshqa obyekt hisobidan to'langan xarajat",
+                                    amount = summary?.totalExpensesPaidByOtherObjects ?: 0.0,
+                                    customColor = DeepBluePrimary,
+                                    onClick = { viewModel.openDrillDown(DrillDownType.ALL_EXPENSES) }
+                                )
+                            }
+
+                            if ((summary?.totalExpensesPaidForOtherObjects ?: 0.0) > 0) {
+                                InteractiveBreakdownRow(
+                                    title = "  ↳ Boshqa obyekt uchun to'lab berilgan xarajat",
+                                    amount = summary?.totalExpensesPaidForOtherObjects ?: 0.0,
+                                    customColor = AmberWarning,
+                                    onClick = { viewModel.openDrillDown(DrillDownType.ALL_EXPENSES) }
+                                )
+                            }
+
+                            HorizontalDivider(color = BorderColor)
+
+                            // 4. Yakuniy Moliyaviy Natija va Kassa
+                            InteractiveBreakdownRow(
+                                title = "Jami Obyekt Xarajatlari",
+                                amount = summary?.totalExpenses ?: 0.0,
+                                customColor = RoseExpense,
+                                isBold = true,
+                                onClick = { viewModel.openDrillDown(DrillDownType.ALL_EXPENSES) }
+                            )
+                            InteractiveBreakdownRow(
+                                title = "Kassadan chiqqan jami pul (Chiqim)",
+                                amount = summary?.totalCashOutflow ?: 0.0,
+                                customColor = RoseExpense,
+                                isBold = true,
+                                onClick = { viewModel.openDrillDown(DrillDownType.CASH_OUTFLOW) }
+                            )
+                            InteractiveBreakdownRow(
+                                title = "Qo'ldagi pul (Kassa balansi)",
+                                amount = summary?.cashBalance ?: 0.0,
+                                customColor = if ((summary?.cashBalance ?: 0.0) >= 0) EmeraldSuccess else RoseExpense,
+                                isBold = true,
+                                onClick = { viewModel.openDrillDown(DrillDownType.CASH_OUTFLOW) }
+                            )
+                            InteractiveBreakdownRow(
+                                title = "Taxminiy Sof Foyda",
+                                amount = summary?.estimatedProfit ?: 0.0,
+                                customColor = if ((summary?.estimatedProfit ?: 0.0) >= 0) EmeraldSuccess else RoseExpense,
+                                isBold = true,
+                                isCustomText = (summary?.totalPrice ?: 0.0) <= 0.0,
+                                customText = "Kiritilmagan",
+                                isClickable = false
+                            )
                         }
                     }
-
-                    if ((summary?.totalExpensesPaidByOtherObjects ?: 0.0) > 0) {
-                        BreakdownRow(
-                            title = "  ↳ Boshqa obyekt hisobidan to'langan xarajat",
-                            amount = summary?.totalExpensesPaidByOtherObjects ?: 0.0,
-                            customColor = DeepBluePrimary
-                        )
-                    }
-
-                    if ((summary?.totalExpensesPaidForOtherObjects ?: 0.0) > 0) {
-                        BreakdownRow(
-                            title = "  ↳ Boshqa obyekt uchun to'lab berilgan xarajat",
-                            amount = summary?.totalExpensesPaidForOtherObjects ?: 0.0,
-                            customColor = AmberWarning
-                        )
-                    }
-
-                    HorizontalDivider(color = BorderColor)
-
-                    // 4. Yakuniy Moliyaviy Natija va Kassa
-                    BreakdownRow(
-                        title = "Jami Obyekt Xarajatlari",
-                        amount = summary?.totalExpenses ?: 0.0,
-                        customColor = RoseExpense,
-                        isBold = true
-                    )
-                    BreakdownRow(
-                        title = "Kassadan chiqqan jami pul (Chiqim)",
-                        amount = summary?.totalCashOutflow ?: 0.0,
-                        customColor = RoseExpense,
-                        isBold = true
-                    )
-                    BreakdownRow(
-                        title = "Qo'ldagi pul (Kassa balansi)",
-                        amount = summary?.cashBalance ?: 0.0,
-                        customColor = if ((summary?.cashBalance ?: 0.0) >= 0) EmeraldSuccess else RoseExpense,
-                        isBold = true
-                    )
-                    BreakdownRow(
-                        title = "Taxminiy Sof Foyda",
-                        amount = summary?.estimatedProfit ?: 0.0,
-                        customColor = if ((summary?.estimatedProfit ?: 0.0) >= 0) EmeraldSuccess else RoseExpense,
-                        isBold = true,
-                        isCustomText = (summary?.totalPrice ?: 0.0) <= 0.0,
-                        customText = "Kiritilmagan"
-                    )
                 }
             }
         }
     }
+
+    // DRILL-DOWN BATAFSIL RO'YXAT MODAL SHEET
+    if (uiState.selectedDrillDownType != null) {
+        ReportDrillDownBottomSheet(
+            uiState = uiState,
+            onDismiss = { viewModel.closeDrillDown() }
+        )
+    }
 }
 
 @Composable
-fun FinancialHealthCard(summary: ObjectFinancialSummary) {
+fun InteractiveBreakdownRow(
+    title: String,
+    amount: Double,
+    customColor: Color = TextPrimary,
+    isBold: Boolean = false,
+    isCustomText: Boolean = false,
+    customText: String = "",
+    isClickable: Boolean = true,
+    onClick: (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(enabled = isClickable && onClick != null) { onClick?.invoke() }
+            .padding(vertical = 4.dp, horizontal = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = title,
+                style = if (isBold) MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold) else MaterialTheme.typography.bodyMedium,
+                color = if (isBold) TextPrimary else TextSecondary
+            )
+            if (isClickable && onClick != null) {
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = TextMuted.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+        Text(
+            text = if (isCustomText) customText else CurrencyFormatter.formatAmount(amount),
+            style = if (isBold) MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold) else MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = customColor
+        )
+    }
+}
+
+@Composable
+fun FinancialHealthCard(
+    summary: ObjectFinancialSummary,
+    onIncomesClick: () -> Unit,
+    onWorkerDebtsClick: () -> Unit,
+    onCashflowClick: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -257,7 +385,7 @@ fun FinancialHealthCard(summary: ObjectFinancialSummary) {
                 }
             }
 
-            // 1. RENTABELLIK PROGRESS BARI (Obyekt Narxi vs Xarajatlar vs Foyda)
+            // 1. RENTABELLIK PROGRESS BARI
             if (summary.totalPrice > 0) {
                 val expenseRatio = (summary.totalExpenses / summary.totalPrice).toFloat().coerceIn(0f, 1f)
                 val profitRatio = (1f - expenseRatio).coerceAtLeast(0f)
@@ -279,7 +407,6 @@ fun FinancialHealthCard(summary: ObjectFinancialSummary) {
                         )
                     }
 
-                    // Segmented Visual Bar
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -309,51 +436,75 @@ fun FinancialHealthCard(summary: ObjectFinancialSummary) {
 
             HorizontalDivider(color = BorderColor.copy(alpha = 0.5f))
 
-            // 2. MIJOZ AVANSLARI VA ISHCHILAR QARZI TAHLILI
+            // 2. MIJOZ AVANSLARI VA ISHCHILAR QARZI TAHLILI (Bosilganda Drill-down ochiladi!)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "Mijoz To'lovi", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                    Text(
-                        text = CurrencyFormatter.formatAmountShort(summary.totalReceivedIncome),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = EmeraldSuccess
-                    )
-                    Text(
-                        text = "Qoldiq: " + CurrencyFormatter.formatAmountShort(summary.remainingReceivable),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted
-                    )
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onIncomesClick() },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceVariantLight.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(text = "Mijoz To'lovi", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Text(
+                            text = CurrencyFormatter.formatAmountShort(summary.totalReceivedIncome),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = EmeraldSuccess
+                        )
+                        Text(
+                            text = "Qoldiq: " + CurrencyFormatter.formatAmountShort(summary.remainingReceivable),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted
+                        )
+                    }
                 }
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "Ishchilar Qarzi", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                    Text(
-                        text = CurrencyFormatter.formatAmountShort(summary.totalWorkerDebt),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = if (summary.totalWorkerDebt > 0) RoseExpense else EmeraldSuccess
-                    )
-                    Text(
-                        text = "To'langan: " + CurrencyFormatter.formatAmountShort(summary.totalPaidToWorkers),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted
-                    )
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onWorkerDebtsClick() },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceVariantLight.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(text = "Ishchilar Qarzi", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Text(
+                            text = CurrencyFormatter.formatAmountShort(summary.totalWorkerDebt),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = if (summary.totalWorkerDebt > 0) RoseExpense else EmeraldSuccess
+                        )
+                        Text(
+                            text = "To'langan: " + CurrencyFormatter.formatAmountShort(summary.totalPaidToWorkers),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted
+                        )
+                    }
                 }
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "Kassa Qoldig'i", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                    Text(
-                        text = CurrencyFormatter.formatAmountShort(summary.cashBalance),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = if (summary.cashBalance >= 0) EmeraldSuccess else RoseExpense
-                    )
-                    Text(
-                        text = "Sof Kassa",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted
-                    )
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onCashflowClick() },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceVariantLight.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(text = "Kassa Qoldig'i", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Text(
+                            text = CurrencyFormatter.formatAmountShort(summary.cashBalance),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = if (summary.cashBalance >= 0) EmeraldSuccess else RoseExpense
+                        )
+                        Text(
+                            text = "Sof Kassa",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted
+                        )
+                    }
                 }
             }
         }
@@ -361,7 +512,10 @@ fun FinancialHealthCard(summary: ObjectFinancialSummary) {
 }
 
 @Composable
-fun ExpenseDistributionChartCard(summary: ObjectFinancialSummary) {
+fun ExpenseDistributionChartCard(
+    summary: ObjectFinancialSummary,
+    onCategoryClick: (String) -> Unit
+) {
     val totalExpenseSum = remember(summary.categoryBreakdowns) {
         summary.categoryBreakdowns.sumOf { it.totalAmount }.coerceAtLeast(1.0)
     }
@@ -439,14 +593,18 @@ fun ExpenseDistributionChartCard(summary: ObjectFinancialSummary) {
                 }
             }
 
-            // Kategoriya qatorlari
+            // Kategoriya qatorlari (Har bir kategoriya bosiladi!)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 summary.categoryBreakdowns.forEachIndexed { index, item ->
                     val percentage = ((item.totalAmount / totalExpenseSum) * 100).toInt()
                     val itemColor = palette[index % palette.size]
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onCategoryClick(item.categoryName) }
+                            .padding(vertical = 4.dp, horizontal = 2.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -464,6 +622,12 @@ fun ExpenseDistributionChartCard(summary: ObjectFinancialSummary) {
                                 text = item.categoryName,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextPrimary
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = TextMuted.copy(alpha = 0.6f),
+                                modifier = Modifier.size(14.dp)
                             )
                         }
 
@@ -489,29 +653,240 @@ fun ExpenseDistributionChartCard(summary: ObjectFinancialSummary) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BreakdownRow(
-    title: String,
-    amount: Double,
-    customColor: Color = TextPrimary,
-    isBold: Boolean = false,
-    isCustomText: Boolean = false,
-    customText: String = ""
+fun ReportDrillDownBottomSheet(
+    uiState: ReportsUiState,
+    onDismiss: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    val drillType = uiState.selectedDrillDownType ?: return
+    val categoryName = uiState.selectedCategoryName
+    val allObjsMap = remember(uiState.availableObjects) { uiState.availableObjects.associateBy { it.id } }
+
+    val title = when (drillType) {
+        DrillDownType.INCOMES -> "Tushumlar va Mijoz To'lovlari"
+        DrillDownType.WORKER_PAYMENTS -> "Ishchilarga Berilgan To'lovlar"
+        DrillDownType.EXTERNAL_WORKERS_PAID -> "Boshqa Obyekt Ishchilariga To'langan"
+        DrillDownType.EXTERNAL_PAID_FOR_THIS_WORKERS -> "Boshqa Obyekt Hisobidan Qoplangan Ish Haqi"
+        DrillDownType.WORKER_DEBTS -> "Ishchilarga Qolgan Qarzlar"
+        DrillDownType.ALL_EXPENSES -> "Barcha Obyekt Xarajatlari"
+        DrillDownType.CATEGORY_EXPENSES -> "$categoryName bo'yicha Xarajatlar"
+        DrillDownType.CASH_OUTFLOW -> "Kassadan Chiqqan Barcha Mablag'lar"
+        DrillDownType.EXTERNAL_EXPENSES_PAID -> "Boshqa Obyekt Uchun To'lab Berilgan Xarajat"
+        DrillDownType.EXTERNAL_EXPENSES_PAID_BY_OTHERS -> "Boshqa Obyekt Hisobidan Qoplangan Xarajat"
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
-        Text(
-            text = title,
-            style = if (isBold) MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold) else MaterialTheme.typography.bodyMedium,
-            color = if (isBold) TextPrimary else TextSecondary
-        )
-        Text(
-            text = if (isCustomText) customText else CurrencyFormatter.formatAmount(amount),
-            style = if (isBold) MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold) else MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-            color = customColor
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = "Ushbu ko'rsatkichga ta'sir qilgan barcha yozuvlar tafsiloti",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(imageVector = Icons.Default.Close, contentDescription = "Yopish")
+                }
+            }
+
+            // RO'YXATLARNI TANLASH VA KO'RSATISH
+            when (drillType) {
+                DrillDownType.INCOMES -> {
+                    val list = uiState.incomes
+                    if (list.isEmpty()) {
+                        EmptyDrillDownView("Kirim yozuvlari topilmadi")
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(list, key = { it.id }) { tx ->
+                                val isTransfer = tx.description?.startsWith("[") == true && tx.description.contains("kassasidan o'tkazma")
+                                DrillDownCard(
+                                    date = tx.date,
+                                    mainText = tx.description ?: "Mijoz to'lovi",
+                                    amount = tx.amount,
+                                    amountColor = EmeraldSuccess,
+                                    badgeText = if (isTransfer) "Kassalararo o'tkazma" else "Mijoz to'lovi",
+                                    badgeColor = if (isTransfer) Color(0xFF8B5CF6) else EmeraldSuccess
+                                )
+                            }
+                        }
+                    }
+                }
+
+                DrillDownType.WORKER_DEBTS -> {
+                    val list = uiState.workerStatsList.filter { it.remainingDebtToWorker > 0 }
+                    if (list.isEmpty()) {
+                        EmptyDrillDownView("Ishchilarga hech qanday qarz mavjud emas 🎉")
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(list, key = { it.workerId }) { ws ->
+                                DrillDownCard(
+                                    date = "${ws.workedDaysCount} ish kuni",
+                                    mainText = ws.workerName + if (!ws.position.isNullOrBlank()) " (${ws.position})" else "",
+                                    subText = "Ishladi: ${CurrencyFormatter.formatAmountShort(ws.totalEarned)} | To'landi: ${CurrencyFormatter.formatAmountShort(ws.totalPaid)}",
+                                    amount = ws.remainingDebtToWorker,
+                                    amountColor = RoseExpense,
+                                    badgeText = "Qarz",
+                                    badgeColor = RoseExpense
+                                )
+                            }
+                        }
+                    }
+                }
+
+                DrillDownType.CATEGORY_EXPENSES -> {
+                    val list = uiState.expenses.filter { it.category == categoryName }
+                    if (list.isEmpty()) {
+                        EmptyDrillDownView("Ushbu kategoriyada xarajatlar yo'q")
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(list, key = { it.id }) { exp ->
+                                val isOtherPayer = exp.payerObjectId != null && exp.payerObjectId != exp.objectId
+                                val payerObjName = allObjsMap[exp.payerObjectId]?.name ?: "Boshqa obyekt"
+                                DrillDownCard(
+                                    date = exp.date,
+                                    mainText = exp.description ?: exp.category,
+                                    subText = "Kategoriya: ${exp.category}",
+                                    amount = exp.amount,
+                                    amountColor = RoseExpense,
+                                    badgeText = if (isOtherPayer) "$payerObjName hisobidan" else null,
+                                    badgeColor = DeepBluePrimary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                DrillDownType.ALL_EXPENSES, DrillDownType.CASH_OUTFLOW -> {
+                    val list = uiState.expenses
+                    if (list.isEmpty()) {
+                        EmptyDrillDownView("Xarajatlar topilmadi")
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(list, key = { it.id }) { exp ->
+                                val isOtherPayer = exp.payerObjectId != null && exp.payerObjectId != exp.objectId
+                                val isTransfer = exp.category == "Kassalararo o'tkazma"
+                                val payerObjName = allObjsMap[exp.payerObjectId]?.name ?: "Boshqa obyekt"
+
+                                DrillDownCard(
+                                    date = exp.date,
+                                    mainText = exp.description ?: exp.category,
+                                    subText = "Kategoriya: ${exp.category}",
+                                    amount = exp.amount,
+                                    amountColor = RoseExpense,
+                                    badgeText = when {
+                                        isTransfer -> "Kassa o'tkazmasi"
+                                        isOtherPayer -> "$payerObjName hisobidan"
+                                        else -> null
+                                    },
+                                    badgeColor = if (isTransfer) Color(0xFF8B5CF6) else DeepBluePrimary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                else -> {
+                    EmptyDrillDownView("Tafsilotlar mavjud emas")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+fun DrillDownCard(
+    date: String,
+    mainText: String,
+    subText: String? = null,
+    amount: Double,
+    amountColor: Color,
+    badgeText: String? = null,
+    badgeColor: Color = DeepBluePrimary
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceVariantLight.copy(alpha = 0.5f)),
+        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderColor))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                if (!badgeText.isNullOrBlank()) {
+                    Surface(
+                        color = badgeColor.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    ) {
+                        Text(
+                            text = badgeText,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = badgeColor,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = mainText,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = TextPrimary
+                )
+                if (!subText.isNullOrBlank()) {
+                    Text(
+                        text = subText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
+                }
+                Text(
+                    text = if (date.contains("-")) DateUtil.formatToFullDisplay(date) else date,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted
+                )
+            }
+
+            Text(
+                text = CurrencyFormatter.formatAmount(amount),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = amountColor
+            )
+        }
+    }
+}
+
+@Composable
+fun EmptyDrillDownView(message: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = message, style = MaterialTheme.typography.bodyMedium, color = TextMuted)
     }
 }
