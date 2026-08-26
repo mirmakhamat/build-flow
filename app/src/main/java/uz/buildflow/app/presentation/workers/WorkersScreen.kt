@@ -1,10 +1,5 @@
 package uz.buildflow.app.presentation.workers
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,7 +22,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CurrencyFormatter
-import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.Worker
 import uz.buildflow.app.presentation.common.EmptyStateView
 
@@ -61,29 +55,13 @@ fun WorkersScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    if (uiState.isSelectionMode) {
-                        Text(
-                            text = "Tanlandi: ${uiState.selectedWorkerIds.size} nafar",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = DeepBluePrimary
-                        )
-                    } else {
-                        Text(
-                            text = "Ishchilar va Davomat",
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                    }
+                    Text(
+                        text = "Ishchilar va Davomat",
+                        style = MaterialTheme.typography.titleLarge
+                    )
                 },
                 navigationIcon = {
-                    if (uiState.isSelectionMode) {
-                        IconButton(onClick = { viewModel.clearSelection() }) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Bekor qilish",
-                                tint = TextPrimary
-                            )
-                        }
-                    } else if (onBackToObjects != null) {
+                    if (onBackToObjects != null) {
                         IconButton(onClick = onBackToObjects) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -93,57 +71,44 @@ fun WorkersScreen(
                     }
                 },
                 actions = {
-                    if (uiState.isSelectionMode) {
-                        // Barchasini tanlash
-                        IconButton(onClick = { viewModel.selectAllWorkers() }) {
+                    // Boshqa obyektdan ishchi olib kelish (Import)
+                    IconButton(onClick = { viewModel.openImportWorkerSheet() }) {
+                        Icon(
+                            imageVector = Icons.Default.GroupAdd,
+                            contentDescription = "Boshqa obyektdan ishchi qo'shish",
+                            tint = DeepBluePrimary
+                        )
+                    }
+
+                    if (!uiState.selectedObjectId.isNullOrBlank()) {
+                        IconButton(onClick = onBatchAttendanceClick) {
                             Icon(
-                                imageVector = Icons.Default.SelectAll,
-                                contentDescription = "Barchasini tanlash",
+                                imageVector = Icons.AutoMirrored.Filled.FactCheck,
+                                contentDescription = "Guruhli davomat",
                                 tint = DeepBluePrimary
                             )
                         }
-                    } else {
-                        // Ommaviy ko'chirish rejimini yoqish
-                        if (uiState.workers.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.toggleSelectionMode() }) {
-                                Icon(
-                                    imageVector = Icons.Default.MoveToInbox,
-                                    contentDescription = "Obyektga ko'chirish",
-                                    tint = DeepBluePrimary
-                                )
-                            }
-                        }
-                        if (!uiState.selectedObjectId.isNullOrBlank()) {
-                            IconButton(onClick = onBatchAttendanceClick) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.FactCheck,
-                                    contentDescription = "Guruhli davomat",
-                                    tint = DeepBluePrimary
-                                )
-                            }
-                        }
-                        IconButton(onClick = { viewModel.refresh() }) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Yangilash (Refresh)",
-                                tint = DeepBluePrimary
-                            )
-                        }
+                    }
+
+                    IconButton(onClick = { viewModel.refresh() }) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Yangilash (Refresh)",
+                            tint = DeepBluePrimary
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceLight)
             )
         },
         floatingActionButton = {
-            if (!uiState.isSelectionMode) {
-                FloatingActionButton(
-                    onClick = { viewModel.openAddWorker() },
-                    containerColor = DeepBluePrimary,
-                    contentColor = SurfaceLight,
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.PersonAdd, contentDescription = "Ishchi qo'shish")
-                }
+            FloatingActionButton(
+                onClick = { viewModel.openAddWorker() },
+                containerColor = DeepBluePrimary,
+                contentColor = SurfaceLight,
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Icon(imageVector = Icons.Default.PersonAdd, contentDescription = "Yangi ishchi qo'shish")
             }
         }
     ) { paddingValues ->
@@ -157,85 +122,22 @@ fun WorkersScreen(
                 if (uiState.workers.isEmpty() && !uiState.isLoading) {
                     EmptyStateView(
                         title = "Ishchilar mavjud emas",
-                        description = "Ushbu obyektga yangi ishchi biriktirish uchun pastdagi '+' tugmasini bosing.",
+                        description = "Yangi ishchi qo'shish uchun pastdagi '+' tugmasini, boshqa obyektdagi ishchini jalb qilish uchun yuqoridagi guruh belgisini bosing.",
                         icon = Icons.Default.Engineering,
                         modifier = Modifier.weight(1f)
                     )
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 16.dp,
-                            bottom = if (uiState.isSelectionMode && uiState.selectedWorkerIds.isNotEmpty()) 90.dp else 16.dp
-                        ),
+                        contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(uiState.workers, key = { it.worker.id }) { item ->
-                            val isSelected = uiState.selectedWorkerIds.contains(item.worker.id)
-                            SelectableWorkerCard(
+                            WorkerCard(
                                 worker = item.worker,
                                 stats = item.stats,
-                                isSelectionMode = uiState.isSelectionMode,
-                                isSelected = isSelected,
-                                onSelectToggle = { viewModel.toggleWorkerSelection(item.worker.id) },
-                                onClick = {
-                                    if (uiState.isSelectionMode) {
-                                        viewModel.toggleWorkerSelection(item.worker.id)
-                                    } else {
-                                        onWorkerClick(item.worker.id)
-                                    }
-                                }
+                                onClick = { onWorkerClick(item.worker.id) }
                             )
-                        }
-                    }
-                }
-            }
-
-            // PASTKI OMMAVIY KO'CHIRISH FLOATING TUGMASI (Selection Mode)
-            AnimatedVisibility(
-                visible = uiState.isSelectionMode && uiState.selectedWorkerIds.isNotEmpty(),
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(16.dp)
-            ) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = DeepBluePrimary),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "${uiState.selectedWorkerIds.size} nafar ishchi tanlandi",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                color = Color.White
-                            )
-                            Text(
-                                text = "Boshqa obyektga o'tkazish",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
-                        }
-
-                        Button(
-                            onClick = { viewModel.openTransferSheet() },
-                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess, contentColor = Color.White),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Ko'chirish", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -243,7 +145,7 @@ fun WorkersScreen(
         }
     }
 
-    // Ishchi qo'shish / tahrirlash Sheet
+    // Yangi ishchi yaratish / tahrirlash Sheet
     if (uiState.isAddEditSheetOpen) {
         AddEditWorkerSheet(
             existingWorker = uiState.selectedWorker,
@@ -256,27 +158,20 @@ fun WorkersScreen(
         )
     }
 
-    // Ishchilarni Ommaviy Ko'chirish Sheet
-    if (uiState.isTransferSheetOpen) {
-        TransferWorkersBottomSheet(
-            selectedWorkerCount = uiState.selectedWorkerIds.size,
-            currentObjectId = uiState.selectedObjectId ?: "",
-            availableObjects = uiState.availableObjects,
-            onDismiss = { viewModel.closeTransferSheet() },
-            onConfirmTransfer = { targetObjectId ->
-                viewModel.transferSelectedWorkers(targetObjectId)
-            }
+    // Boshqa obyektdan ishchi olib kelish Sheet
+    if (uiState.isImportSheetOpen) {
+        ImportWorkerBottomSheet(
+            importableWorkers = uiState.importableWorkers,
+            onDismiss = { viewModel.closeImportWorkerSheet() },
+            onSelectWorker = { w -> viewModel.importWorkerToCurrentObject(w) }
         )
     }
 }
 
 @Composable
-fun SelectableWorkerCard(
+fun WorkerCard(
     worker: Worker,
     stats: uz.buildflow.app.domain.model.WorkerStats?,
-    isSelectionMode: Boolean,
-    isSelected: Boolean,
-    onSelectToggle: () -> Unit,
     onClick: () -> Unit
 ) {
     Card(
@@ -284,15 +179,8 @@ fun SelectableWorkerCard(
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) DeepBluePrimary.copy(alpha = 0.08f) else SurfaceLight
-        ),
-        border = if (isSelected) CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidColor(DeepBluePrimary)
-        ) else CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidColor(BorderColor.copy(alpha = 0.5f))
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 3.dp else 1.dp)
+        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
@@ -301,27 +189,18 @@ fun SelectableWorkerCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Ko'p tanlash rejimida Checkbox
-            if (isSelectionMode) {
-                Checkbox(
-                    checked = isSelected,
-                    onCheckedChange = { onSelectToggle() },
-                    colors = CheckboxDefaults.colors(checkedColor = DeepBluePrimary)
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(DeepBluePrimary.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = worker.name.take(1).uppercase(),
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = DeepBluePrimary
                 )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(DeepBluePrimary.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = worker.name.take(1).uppercase(),
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = DeepBluePrimary
-                    )
-                }
             }
 
             Column(modifier = Modifier.weight(1f)) {
@@ -353,34 +232,36 @@ fun SelectableWorkerCard(
                 }
             }
 
-            if (!isSelectionMode) {
-                Icon(
-                    imageVector = Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = TextMuted
-                )
-            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = TextMuted
+            )
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransferWorkersBottomSheet(
-    selectedWorkerCount: Int,
-    currentObjectId: String,
-    availableObjects: List<BuildObject>,
+fun ImportWorkerBottomSheet(
+    importableWorkers: List<ImportableWorkerItem>,
     onDismiss: () -> Unit,
-    onConfirmTransfer: (targetObjectId: String) -> Unit
+    onSelectWorker: (Worker) -> Unit
 ) {
-    val eligibleObjects = remember(availableObjects, currentObjectId) {
-        availableObjects.filter { it.id != currentObjectId }
-    }
+    var searchQuery by remember { mutableStateOf("") }
 
-    var selectedTargetObjectId by remember(eligibleObjects) {
-        mutableStateOf(eligibleObjects.firstOrNull()?.id ?: "")
+    val filteredList = remember(importableWorkers, searchQuery) {
+        if (searchQuery.isBlank()) {
+            importableWorkers
+        } else {
+            val q = searchQuery.trim().lowercase()
+            importableWorkers.filter {
+                it.worker.name.lowercase().contains(q) ||
+                (it.worker.position?.lowercase()?.contains(q) == true) ||
+                it.sourceObjectName.lowercase().contains(q)
+            }
+        }
     }
-    var isDropdownExpanded by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -390,7 +271,7 @@ fun TransferWorkersBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -399,12 +280,12 @@ fun TransferWorkersBottomSheet(
             ) {
                 Column {
                     Text(
-                        text = "Ishchilarni Ko'chirish",
+                        text = "Boshqa Obyektdan Ishchi Qo'shish",
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     )
                     Text(
-                        text = "$selectedWorkerCount nafar ishchi boshqa obyektga o'tkazilmoqda",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Kerakli ishchini tanlang, u shu obyektda ham paydo bo'ladi",
+                        style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
                 }
@@ -413,96 +294,100 @@ fun TransferWorkersBottomSheet(
                 }
             }
 
-            if (eligibleObjects.isEmpty()) {
-                Text(
-                    text = "Ko'chirish uchun boshqa obyekt mavjud emas. Avval yangi obyekt yarating.",
-                    color = RoseExpense,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Ishchi ismi yoki mutaxassisligi...") },
+                leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null) },
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+
+            if (filteredList.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "Mos ishchi topilmadi", color = TextMuted)
+                }
             } else {
-                val currentTargetObj = eligibleObjects.find { it.id == selectedTargetObjectId }
-
-                ExposedDropdownMenuBox(
-                    expanded = isDropdownExpanded,
-                    onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 380.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedTextField(
-                        value = currentTargetObj?.name ?: "Obyektni tanlang",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Qaysi obyektga ko'chiriladi?") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = isDropdownExpanded,
-                        onDismissRequest = { isDropdownExpanded = false }
-                    ) {
-                        eligibleObjects.forEach { objItem ->
-                            DropdownMenuItem(
-                                text = { Text(objItem.name) },
-                                onClick = {
-                                    selectedTargetObjectId = objItem.id
-                                    isDropdownExpanded = false
-                                }
+                    items(filteredList, key = { it.worker.id }) { item ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectWorker(item.worker) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = SurfaceVariantLight.copy(alpha = 0.6f)),
+                            border = CardDefaults.outlinedCardBorder().copy(
+                                brush = androidx.compose.ui.graphics.SolidColor(BorderColor)
                             )
-                        }
-                    }
-                }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(DeepBluePrimary.copy(alpha = 0.1f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = item.worker.name.take(1).uppercase(),
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = DeepBluePrimary
+                                        )
+                                    }
 
-                // Axborot xabari
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = DeepBluePrimary.copy(alpha = 0.07f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = DeepBluePrimary)
-                        Text(
-                            text = "Eslatma: Ishchilarning o'tgan kungi barcha davomatlari va berilgan to'lovlari avvalgi obyekt balansida to'liq saqlanadi. Yangi davomatlar esa yangi obyektga yoziladi.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = DeepBluePrimary
-                        )
-                    }
-                }
+                                    Column {
+                                        Text(
+                                            text = item.worker.name,
+                                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                            color = TextPrimary
+                                        )
+                                        Text(
+                                            text = "${item.worker.position ?: "Ishchi"} · ${CurrencyFormatter.formatAmountShort(item.worker.defaultRate)} / kun",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = TextSecondary
+                                        )
+                                        Text(
+                                            text = "Asosiy obyekt: ${item.sourceObjectName}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = DeepBlueLight
+                                        )
+                                    }
+                                }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Bekor qilish")
-                    }
-
-                    Button(
-                        onClick = {
-                            if (selectedTargetObjectId.isNotBlank()) {
-                                onConfirmTransfer(selectedTargetObjectId)
+                                Icon(
+                                    imageVector = Icons.Default.AddCircleOutline,
+                                    contentDescription = "Qo'shish",
+                                    tint = EmeraldSuccess,
+                                    modifier = Modifier.size(24.dp)
+                                )
                             }
-                        },
-                        enabled = selectedTargetObjectId.isNotBlank(),
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = DeepBluePrimary, contentColor = Color.White)
-                    ) {
-                        Text("Ko'chirishni tasdiqlash", fontSize = 13.sp)
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }

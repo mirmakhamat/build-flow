@@ -12,6 +12,7 @@ interface ObjectRepository {
 }
 
 interface WorkerRepository {
+    fun getAllWorkers(): Flow<List<Worker>>
     fun getWorkersByObject(objectId: String): Flow<List<Worker>>
     fun getWorkerById(id: String): Flow<Worker?>
     fun getActiveWorkerCount(objectId: String): Flow<Int>

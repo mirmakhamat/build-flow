@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.Worker
 import uz.buildflow.app.domain.model.WorkerStats
@@ -18,6 +19,11 @@ data class WorkerWithStats(
     val stats: WorkerStats?
 )
 
+data class ImportableWorkerItem(
+    val worker: Worker,
+    val sourceObjectName: String
+)
+
 data class WorkersUiState(
     val workers: List<WorkerWithStats> = emptyList(),
     val availableObjects: List<BuildObject> = emptyList(),
@@ -28,10 +34,9 @@ data class WorkersUiState(
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null,
     val successMessage: String? = null,
-    // Ommaviy ko'chirish (Batch Transfer) holatlari
-    val isSelectionMode: Boolean = false,
-    val selectedWorkerIds: Set<String> = emptySet(),
-    val isTransferSheetOpen: Boolean = false
+    // Boshqa obyektdan ishchi olib kelish (Import) holatlari
+    val isImportSheetOpen: Boolean = false,
+    val importableWorkers: List<ImportableWorkerItem> = emptyList()
 )
 
 class WorkersViewModel(
@@ -56,7 +61,7 @@ class WorkersViewModel(
     }
 
     fun selectObject(objectId: String) {
-        _uiState.update { it.copy(selectedObjectId = objectId, selectedWorkerIds = emptySet(), isSelectionMode = false) }
+        _uiState.update { it.copy(selectedObjectId = objectId) }
         loadWorkersForObject(objectId)
     }
 
@@ -110,77 +115,58 @@ class WorkersViewModel(
         }
     }
 
-    // OMMAVIY KO'CHIRISH (BATCH TRANSFER) METODLARI
-    fun toggleSelectionMode() {
-        _uiState.update {
-            val nextState = !it.isSelectionMode
-            it.copy(isSelectionMode = nextState, selectedWorkerIds = if (nextState) it.selectedWorkerIds else emptySet())
-        }
-    }
-
-    fun toggleWorkerSelection(workerId: String) {
-        _uiState.update {
-            val current = it.selectedWorkerIds.toMutableSet()
-            if (current.contains(workerId)) {
-                current.remove(workerId)
-            } else {
-                current.add(workerId)
-            }
-            it.copy(
-                selectedWorkerIds = current,
-                isSelectionMode = if (current.isEmpty() && !it.isSelectionMode) false else true
-            )
-        }
-    }
-
-    fun selectAllWorkers() {
-        _uiState.update {
-            val allIds = it.workers.map { w -> w.worker.id }.toSet()
-            it.copy(selectedWorkerIds = allIds, isSelectionMode = true)
-        }
-    }
-
-    fun clearSelection() {
-        _uiState.update { it.copy(selectedWorkerIds = emptySet(), isSelectionMode = false) }
-    }
-
-    fun openTransferSheet() {
-        if (_uiState.value.selectedWorkerIds.isEmpty()) {
-            _uiState.update { it.copy(errorMessage = "Ko'chirish uchun kamida bitta ishchini tanlang!") }
-            return
-        }
-        val otherObjects = _uiState.value.availableObjects.filter { it.id != _uiState.value.selectedObjectId }
-        if (otherObjects.isEmpty()) {
-            _uiState.update { it.copy(errorMessage = "Ko'chirish uchun tizimda boshqa obyekt mavjud emas!") }
-            return
-        }
-        _uiState.update { it.copy(isTransferSheetOpen = true) }
-    }
-
-    fun closeTransferSheet() {
-        _uiState.update { it.copy(isTransferSheetOpen = false) }
-    }
-
-    fun transferSelectedWorkers(targetObjectId: String) {
+    // BOSHQA OBYEKTDAN ISHCHILARNI OLIB KELISH (IMPORT)
+    fun openImportWorkerSheet() {
         viewModelScope.launch {
-            val workerIds = _uiState.value.selectedWorkerIds.toList()
-            if (workerIds.isEmpty()) return@launch
+            val currentObjId = _uiState.value.selectedObjectId ?: return@launch
+            val allObjects = _uiState.value.availableObjects.associateBy { it.id }
+            val currentWorkerNames = _uiState.value.workers.map { it.worker.name.trim().lowercase() }.toSet()
 
-            workerRepository.transferWorkers(workerIds, targetObjectId)
+            workerRepository.getAllWorkers().firstOrNull()?.let { allWorkers ->
+                // Faqat boshqa obyektga tegishli bo'lgan va ushbu obyektda hali yo'q bo'lgan ishchilar
+                val candidates = allWorkers
+                    .filter { it.objectId != currentObjId && !currentWorkerNames.contains(it.name.trim().lowercase()) }
+                    // Nomlari bo'yicha takrorlanishlarni oldini olish
+                    .distinctBy { it.name.trim().lowercase() }
+                    .map { w ->
+                        val objName = allObjects[w.objectId]?.name ?: "Boshqa obyekt"
+                        ImportableWorkerItem(worker = w, sourceObjectName = objName)
+                    }
 
-            val currentObjId = _uiState.value.selectedObjectId
+                if (candidates.isEmpty()) {
+                    _uiState.update { it.copy(errorMessage = "Boshqa obyektlarda qo'shish uchun yangi ishchi topilmadi!") }
+                } else {
+                    _uiState.update { it.copy(importableWorkers = candidates, isImportSheetOpen = true) }
+                }
+            }
+        }
+    }
+
+    fun closeImportWorkerSheet() {
+        _uiState.update { it.copy(isImportSheetOpen = false) }
+    }
+
+    fun importWorkerToCurrentObject(sourceWorker: Worker) {
+        viewModelScope.launch {
+            val targetObjectId = _uiState.value.selectedObjectId ?: return@launch
+            val newWorker = Worker(
+                objectId = targetObjectId,
+                name = sourceWorker.name,
+                phone = sourceWorker.phone,
+                position = sourceWorker.position,
+                defaultRate = sourceWorker.defaultRate,
+                startDate = DateUtil.today()
+            )
+            workerRepository.insertWorker(newWorker)
+
             _uiState.update {
                 it.copy(
-                    isTransferSheetOpen = false,
-                    isSelectionMode = false,
-                    selectedWorkerIds = emptySet(),
-                    successMessage = "${workerIds.size} nafar ishchi muvaffaqiyatli ko'chirildi!"
+                    isImportSheetOpen = false,
+                    successMessage = "${sourceWorker.name} ushbu obyektga ham biriktirildi!"
                 )
             }
 
-            if (currentObjId != null) {
-                loadWorkersForObject(currentObjId)
-            }
+            loadWorkersForObject(targetObjectId)
         }
     }
 

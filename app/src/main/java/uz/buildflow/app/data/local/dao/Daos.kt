@@ -29,6 +29,9 @@ interface ObjectDao {
 
 @Dao
 interface WorkerDao {
+    @Query("SELECT * FROM workers ORDER BY name ASC")
+    fun getAllWorkers(): Flow<List<WorkerEntity>>
+
     @Query("SELECT * FROM workers WHERE object_id = :objectId ORDER BY name ASC")
     fun getWorkersByObject(objectId: String): Flow<List<WorkerEntity>>
 

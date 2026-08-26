@@ -20,6 +20,9 @@ class ObjectRepositoryImpl(private val objectDao: ObjectDao) : ObjectRepository 
 }
 
 class WorkerRepositoryImpl(private val workerDao: WorkerDao) : WorkerRepository {
+    override fun getAllWorkers(): Flow<List<Worker>> =
+        workerDao.getAllWorkers().map { list -> list.map { it.toDomain() } }
+
     override fun getWorkersByObject(objectId: String): Flow<List<Worker>> =
         workerDao.getWorkersByObject(objectId).map { list -> list.map { it.toDomain() } }
 
