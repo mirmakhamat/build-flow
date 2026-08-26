@@ -31,6 +31,8 @@ class WorkerRepositoryImpl(private val workerDao: WorkerDao) : WorkerRepository 
 
     override suspend fun insertWorker(worker: Worker) = workerDao.insertWorker(worker.toEntity())
     override suspend fun updateWorker(worker: Worker) = workerDao.updateWorker(worker.toEntity())
+    override suspend fun transferWorkers(workerIds: List<String>, targetObjectId: String) =
+        workerDao.transferWorkers(workerIds, targetObjectId)
     override suspend fun deleteWorker(worker: Worker) = workerDao.deleteWorker(worker.toEntity())
 }
 

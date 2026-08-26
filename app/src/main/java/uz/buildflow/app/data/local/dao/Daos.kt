@@ -44,6 +44,9 @@ interface WorkerDao {
     @Update
     suspend fun updateWorker(worker: WorkerEntity)
 
+    @Query("UPDATE workers SET object_id = :targetObjectId, updated_at = :now WHERE id IN (:workerIds)")
+    suspend fun transferWorkers(workerIds: List<String>, targetObjectId: String, now: Long = System.currentTimeMillis())
+
     @Delete
     suspend fun deleteWorker(worker: WorkerEntity)
 }

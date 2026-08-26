@@ -26,7 +26,12 @@ data class WorkersUiState(
     val selectedWorker: Worker? = null,
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val successMessage: String? = null,
+    // Ommaviy ko'chirish (Batch Transfer) holatlari
+    val isSelectionMode: Boolean = false,
+    val selectedWorkerIds: Set<String> = emptySet(),
+    val isTransferSheetOpen: Boolean = false
 )
 
 class WorkersViewModel(
@@ -51,7 +56,7 @@ class WorkersViewModel(
     }
 
     fun selectObject(objectId: String) {
-        _uiState.update { it.copy(selectedObjectId = objectId) }
+        _uiState.update { it.copy(selectedObjectId = objectId, selectedWorkerIds = emptySet(), isSelectionMode = false) }
         loadWorkersForObject(objectId)
     }
 
@@ -105,6 +110,80 @@ class WorkersViewModel(
         }
     }
 
+    // OMMAVIY KO'CHIRISH (BATCH TRANSFER) METODLARI
+    fun toggleSelectionMode() {
+        _uiState.update {
+            val nextState = !it.isSelectionMode
+            it.copy(isSelectionMode = nextState, selectedWorkerIds = if (nextState) it.selectedWorkerIds else emptySet())
+        }
+    }
+
+    fun toggleWorkerSelection(workerId: String) {
+        _uiState.update {
+            val current = it.selectedWorkerIds.toMutableSet()
+            if (current.contains(workerId)) {
+                current.remove(workerId)
+            } else {
+                current.add(workerId)
+            }
+            it.copy(
+                selectedWorkerIds = current,
+                isSelectionMode = if (current.isEmpty() && !it.isSelectionMode) false else true
+            )
+        }
+    }
+
+    fun selectAllWorkers() {
+        _uiState.update {
+            val allIds = it.workers.map { w -> w.worker.id }.toSet()
+            it.copy(selectedWorkerIds = allIds, isSelectionMode = true)
+        }
+    }
+
+    fun clearSelection() {
+        _uiState.update { it.copy(selectedWorkerIds = emptySet(), isSelectionMode = false) }
+    }
+
+    fun openTransferSheet() {
+        if (_uiState.value.selectedWorkerIds.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "Ko'chirish uchun kamida bitta ishchini tanlang!") }
+            return
+        }
+        val otherObjects = _uiState.value.availableObjects.filter { it.id != _uiState.value.selectedObjectId }
+        if (otherObjects.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "Ko'chirish uchun tizimda boshqa obyekt mavjud emas!") }
+            return
+        }
+        _uiState.update { it.copy(isTransferSheetOpen = true) }
+    }
+
+    fun closeTransferSheet() {
+        _uiState.update { it.copy(isTransferSheetOpen = false) }
+    }
+
+    fun transferSelectedWorkers(targetObjectId: String) {
+        viewModelScope.launch {
+            val workerIds = _uiState.value.selectedWorkerIds.toList()
+            if (workerIds.isEmpty()) return@launch
+
+            workerRepository.transferWorkers(workerIds, targetObjectId)
+
+            val currentObjId = _uiState.value.selectedObjectId
+            _uiState.update {
+                it.copy(
+                    isTransferSheetOpen = false,
+                    isSelectionMode = false,
+                    selectedWorkerIds = emptySet(),
+                    successMessage = "${workerIds.size} nafar ishchi muvaffaqiyatli ko'chirildi!"
+                )
+            }
+
+            if (currentObjId != null) {
+                loadWorkersForObject(currentObjId)
+            }
+        }
+    }
+
     fun openAddWorker() {
         if (_uiState.value.availableObjects.isEmpty()) {
             _uiState.update { it.copy(errorMessage = "Ishchi qo'shish uchun avval Obyektlar bo'limida obyekt yarating!") }
@@ -123,6 +202,10 @@ class WorkersViewModel(
 
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    fun clearSuccess() {
+        _uiState.update { it.copy(successMessage = null) }
     }
 
     fun saveWorker(objectId: String, name: String, phone: String?, position: String?, defaultRate: Double, startDate: String) {
