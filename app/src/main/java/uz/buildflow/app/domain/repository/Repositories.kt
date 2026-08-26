@@ -54,6 +54,7 @@ interface ExpenseRepository {
     fun getExpensesByObject(objectId: String): Flow<List<Expense>>
     fun getExpensesByObjectAndDate(objectId: String, date: String): Flow<List<Expense>>
     fun getTotalExpenseByObject(objectId: String): Flow<Double>
+    fun getTotalCashExpensePaidByObject(objectId: String): Flow<Double>
     fun getExpenseSumByCategory(objectId: String, category: String): Flow<Double>
     fun getCategoryBreakdowns(objectId: String): Flow<List<CategoryExpenseBreakdown>>
     suspend fun insertExpense(expense: Expense)

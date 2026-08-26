@@ -125,6 +125,9 @@ class ExpenseRepositoryImpl(private val expenseDao: ExpenseDao) : ExpenseReposit
     override fun getTotalExpenseByObject(objectId: String): Flow<Double> =
         expenseDao.getTotalExpenseByObject(objectId)
 
+    override fun getTotalCashExpensePaidByObject(objectId: String): Flow<Double> =
+        expenseDao.getTotalCashExpensePaidByObject(objectId)
+
     override fun getExpenseSumByCategory(objectId: String, category: String): Flow<Double> =
         expenseDao.getExpenseSumByCategory(objectId, category)
 

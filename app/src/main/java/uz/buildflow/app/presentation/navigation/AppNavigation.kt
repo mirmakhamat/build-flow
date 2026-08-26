@@ -180,6 +180,7 @@ fun AppNavigation(
                     factory = ExpensesViewModel.provideFactory(
                         container.expenseRepository,
                         container.expenseCategoryRepository,
+                        container.objectRepository,
                         objectId
                     )
                 )
@@ -241,6 +242,7 @@ fun AppNavigation(
                         container.workerRepository,
                         container.workerDayRepository,
                         container.transactionRepository,
+                        container.objectRepository,
                         container.getWorkerStatsUseCase
                     )
                 )

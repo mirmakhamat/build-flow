@@ -149,6 +149,7 @@ data class GeneralBonusEntity(
     ],
     indices = [
         Index(value = ["object_id"]),
+        Index(value = ["payer_object_id"]),
         Index(value = ["date"]),
         Index(value = ["category"])
     ]
@@ -156,6 +157,7 @@ data class GeneralBonusEntity(
 data class ExpenseEntity(
     @PrimaryKey val id: String,
     @ColumnInfo(name = "object_id") val objectId: String,
+    @ColumnInfo(name = "payer_object_id") val payerObjectId: String? = null,
     @ColumnInfo(name = "worker_id") val workerId: String?,
     val category: String,
     val amount: Double,
@@ -208,13 +210,15 @@ data class MoneyTransactionEntity(
     ],
     indices = [
         Index(value = ["worker_id"]),
-        Index(value = ["object_id"])
+        Index(value = ["object_id"]),
+        Index(value = ["payer_object_id"])
     ]
 )
 data class WorkerPaymentEntity(
     @PrimaryKey val id: String,
     @ColumnInfo(name = "worker_id") val workerId: String,
     @ColumnInfo(name = "object_id") val objectId: String,
+    @ColumnInfo(name = "payer_object_id") val payerObjectId: String? = null,
     val amount: Double,
     val date: String,
     val type: String,

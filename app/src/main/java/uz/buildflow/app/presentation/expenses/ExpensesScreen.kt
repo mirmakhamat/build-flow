@@ -117,11 +117,13 @@ fun ExpensesScreen(
         AddExpenseSheet(
             existingExpense = uiState.selectedExpense,
             categories = uiState.categories,
+            availableObjects = uiState.availableObjects,
+            currentObjectId = uiState.selectedObjectId ?: "",
             onDismiss = { viewModel.closeAddExpense() },
             onDelete = { exp -> viewModel.deleteExpense(exp) },
             onAddNewCategory = { name -> viewModel.addNewCategory(name) },
-            onSave = { cat, amt, date, desc, workerId ->
-                viewModel.saveExpense(cat, amt, date, desc, workerId)
+            onSave = { cat, amt, date, desc, workerId, payerObjId ->
+                viewModel.saveExpense(cat, amt, date, desc, workerId, payerObjId)
             }
         )
     }
@@ -159,11 +161,23 @@ fun ExpenseItemCard(
                         color = TextSecondary
                     )
                 }
-                Text(
-                    text = DateUtil.formatToDisplay(expense.date),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = TextMuted
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = DateUtil.formatToDisplay(expense.date),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextMuted
+                    )
+                    if (expense.payerObjectId != null && expense.payerObjectId != expense.objectId) {
+                        Text(
+                            text = "Boshqa obyekt pulidan",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = DeepBluePrimary
+                        )
+                    }
+                }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {

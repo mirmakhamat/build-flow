@@ -25,6 +25,7 @@ class GetObjectFinancialSummaryUseCase(
             workerDayRepository.getTotalGeneralBonusesByObject(objectId),
             transactionRepository.getTotalPaidByObject(objectId),
             expenseRepository.getTotalExpenseByObject(objectId),
+            expenseRepository.getTotalCashExpensePaidByObject(objectId),
             expenseRepository.getCategoryBreakdowns(objectId),
             workerRepository.getActiveWorkerCount(objectId),
             workerDayRepository.getTotalWorkedDaysCountByObject(objectId)
@@ -36,10 +37,11 @@ class GetObjectFinancialSummaryUseCase(
             val generalBonus = values[4] as Double
             val workerPaid = values[5] as Double
             val otherExpenses = values[6] as Double
+            val paidOtherExpenses = values[7] as Double
             @Suppress("UNCHECKED_CAST")
-            val categories = values[7] as List<CategoryExpenseBreakdown>
-            val workerCount = values[8] as Int
-            val workDaysCount = values[9] as Int
+            val categories = values[8] as List<CategoryExpenseBreakdown>
+            val workerCount = values[9] as Int
+            val workDaysCount = values[10] as Int
 
             ObjectFinancialSummary(
                 objectId = obj.id,
@@ -51,6 +53,7 @@ class GetObjectFinancialSummaryUseCase(
                 totalGeneralBonuses = generalBonus,
                 totalPaidToWorkers = workerPaid,
                 totalOtherExpenses = otherExpenses,
+                totalPaidOtherExpenses = paidOtherExpenses,
                 categoryBreakdowns = categories,
                 totalWorkerCount = workerCount,
                 totalWorkDaysCount = workDaysCount

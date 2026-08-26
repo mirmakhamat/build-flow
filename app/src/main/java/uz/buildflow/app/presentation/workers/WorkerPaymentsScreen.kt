@@ -126,9 +126,9 @@ fun WorkerPaymentsScreen(
             existingPayment = uiState.selectedPayment,
             onDismiss = { viewModel.closeAddPayment() },
             onDelete = { p -> viewModel.deletePayment(p) },
-            onSave = { amt, date, type, desc, isPaid ->
+            onSave = { amt, date, type, desc, isPaid, payerObjId ->
                 if (isPaid) {
-                    viewModel.savePayment(amt, date, type, desc)
+                    viewModel.savePayment(amt, date, type, desc, payerObjId)
                 } else if (uiState.selectedPayment != null) {
                     viewModel.deletePayment(uiState.selectedPayment!!)
                 }

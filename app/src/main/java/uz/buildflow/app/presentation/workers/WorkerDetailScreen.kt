@@ -255,10 +255,12 @@ fun WorkerDetailScreen(
         AddWorkerPaymentSheet(
             existingPayment = uiState.selectedPayment,
             defaultDate = uiState.selectedDate ?: DateUtil.today(),
+            availableObjects = uiState.availableObjects,
+            currentObjectId = worker?.objectId ?: "",
             onDismiss = { viewModel.closePaymentSheet() },
             onDelete = { p -> viewModel.deletePayment(p) },
-            onSave = { amount, date, type, desc, isPaid ->
-                viewModel.savePayment(amount, date, type, desc, isPaid)
+            onSave = { amount, date, type, desc, isPaid, payerObjId ->
+                viewModel.savePayment(amount, date, type, desc, isPaid, payerObjId)
             }
         )
     }

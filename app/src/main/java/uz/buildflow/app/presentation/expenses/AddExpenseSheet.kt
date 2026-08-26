@@ -17,22 +17,29 @@ import androidx.compose.ui.unit.dp
 import uz.buildflow.app.core.theme.DeepBluePrimary
 import uz.buildflow.app.core.theme.RoseExpense
 import uz.buildflow.app.core.util.DateUtil
+import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.Expense
 import uz.buildflow.app.domain.model.ExpenseCategoryItem
 import uz.buildflow.app.presentation.common.AmountInputField
+import uz.buildflow.app.presentation.common.DatePickerField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExpenseSheet(
     existingExpense: Expense? = null,
     categories: List<ExpenseCategoryItem>,
+    availableObjects: List<BuildObject> = emptyList(),
+    currentObjectId: String = "",
     onDismiss: () -> Unit,
     onDelete: ((Expense) -> Unit)? = null,
     onAddNewCategory: (String) -> Unit,
-    onSave: (category: String, amount: Double, date: String, description: String?, workerId: String?) -> Unit
+    onSave: (category: String, amount: Double, date: String, description: String?, workerId: String?, payerObjectId: String?) -> Unit
 ) {
     var selectedCategoryName by remember {
         mutableStateOf(existingExpense?.category ?: categories.firstOrNull()?.name ?: "Boshqa xarajat")
+    }
+    var selectedPayerObjectId by remember {
+        mutableStateOf(existingExpense?.payerObjectId)
     }
     var amountStr by remember {
         mutableStateOf(existingExpense?.amount?.toLong()?.toString() ?: "")
@@ -45,6 +52,7 @@ fun AddExpenseSheet(
     }
     var isNewCategoryDialogOpen by remember { mutableStateOf(false) }
     var newCategoryName by remember { mutableStateOf("") }
+    var isObjectMenuExpanded by remember { mutableStateOf(false) }
 
     val isEditMode = existingExpense != null
     val isValid = amountStr.isNotBlank()
@@ -89,14 +97,57 @@ fun AddExpenseSheet(
                 label = "Xarajat summasi (so'm)"
             )
 
-            OutlinedTextField(
+            DatePickerField(
                 value = date,
-                onValueChange = { date = it },
-                label = { Text("Sana (YYYY-MM-DD)") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
+                onDateSelected = { date = it },
+                label = "Xarajat sanasi"
             )
+
+            // KROSS-OBYEKT: Qaysi obyekt kassasidan to'lanadi?
+            if (availableObjects.isNotEmpty()) {
+                val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
+                val currentObj = availableObjects.find { it.id == currentObjectId }
+                val displayName = selectedObj?.name ?: "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"
+
+                ExposedDropdownMenuBox(
+                    expanded = isObjectMenuExpanded,
+                    onExpandedChange = { isObjectMenuExpanded = !isObjectMenuExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = displayName,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("To'lov manbasi (Obyekt kassasi)") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isObjectMenuExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = isObjectMenuExpanded,
+                        onDismissRequest = { isObjectMenuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)") },
+                            onClick = {
+                                selectedPayerObjectId = null
+                                isObjectMenuExpanded = false
+                            }
+                        )
+                        availableObjects.filter { it.id != currentObjectId }.forEach { objItem ->
+                            DropdownMenuItem(
+                                text = { Text("${objItem.name} kassasidan") },
+                                onClick = {
+                                    selectedPayerObjectId = objItem.id
+                                    isObjectMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
 
             OutlinedTextField(
                 value = description,
@@ -110,7 +161,7 @@ fun AddExpenseSheet(
             Button(
                 onClick = {
                     val amt = amountStr.toDoubleOrNull() ?: 0.0
-                    onSave(selectedCategoryName, amt, date, description.trim().ifBlank { null }, null)
+                    onSave(selectedCategoryName, amt, date, description.trim().ifBlank { null }, null, selectedPayerObjectId)
                 },
                 enabled = isValid,
                 modifier = Modifier
@@ -158,9 +209,10 @@ fun AddExpenseSheet(
                 OutlinedTextField(
                     value = newCategoryName,
                     onValueChange = { newCategoryName = it },
-                    label = { Text("Kategoriya nomi (masalan: Santexnika)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("Kategoriya nomi") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
                 )
             },
             confirmButton = {
@@ -173,12 +225,9 @@ fun AddExpenseSheet(
                             isNewCategoryDialogOpen = false
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = DeepBluePrimary,
-                        contentColor = Color.White
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = DeepBluePrimary)
                 ) {
-                    Text("Qo'shish", color = Color.White)
+                    Text("Qo'shish")
                 }
             },
             dismissButton = {
@@ -192,13 +241,14 @@ fun AddExpenseSheet(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun OptInFlowRow(
+fun OptInFlowRow(
     categories: List<ExpenseCategoryItem>,
     selectedCategory: String,
     onCategorySelect: (String) -> Unit,
     onAddCategoryClick: () -> Unit
 ) {
     FlowRow(
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -212,9 +262,13 @@ private fun OptInFlowRow(
 
         AssistChip(
             onClick = onAddCategoryClick,
-            label = { Text("Yangi") },
+            label = { Text("Yangi qo'shish") },
             leadingIcon = {
-                Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
             }
         )
     }

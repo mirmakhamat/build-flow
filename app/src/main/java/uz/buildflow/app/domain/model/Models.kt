@@ -65,6 +65,7 @@ data class GeneralBonus(
 data class Expense(
     val id: String = UUID.randomUUID().toString(),
     val objectId: String,
+    val payerObjectId: String? = null,
     val workerId: String? = null,
     val category: String = "Boshqa xarajat",
     val amount: Double,
@@ -88,6 +89,7 @@ data class WorkerPayment(
     val id: String = UUID.randomUUID().toString(),
     val workerId: String,
     val objectId: String,
+    val payerObjectId: String? = null,
     val amount: Double,
     val date: String,
     val type: PaymentType = PaymentType.SALARY,
@@ -105,6 +107,7 @@ data class ObjectFinancialSummary(
     val totalGeneralBonuses: Double,
     val totalPaidToWorkers: Double,
     val totalOtherExpenses: Double,
+    val totalPaidOtherExpenses: Double = totalOtherExpenses,
     val categoryBreakdowns: List<CategoryExpenseBreakdown> = emptyList(),
     val totalWorkerCount: Int,
     val totalWorkDaysCount: Int
@@ -125,7 +128,7 @@ data class ObjectFinancialSummary(
         get() = (totalPrice - totalReceivedIncome).coerceAtLeast(0.0)
 
     val cashBalance: Double
-        get() = totalReceivedIncome - (totalPaidToWorkers + totalOtherExpenses)
+        get() = totalReceivedIncome - (totalPaidToWorkers + totalPaidOtherExpenses)
 
     val estimatedProfit: Double
         get() = totalPrice - totalAccruedExpenses

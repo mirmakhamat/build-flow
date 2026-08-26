@@ -162,6 +162,9 @@ interface ExpenseDao {
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM expenses WHERE object_id = :objectId")
     fun getTotalExpenseByObject(objectId: String): Flow<Double>
 
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM expenses WHERE (payer_object_id = :objectId) OR (payer_object_id IS NULL AND object_id = :objectId)")
+    fun getTotalCashExpensePaidByObject(objectId: String): Flow<Double>
+
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM expenses WHERE object_id = :objectId AND category = :category")
     fun getExpenseSumByCategory(objectId: String, category: String): Flow<Double>
 
@@ -204,7 +207,7 @@ interface WorkerPaymentDao {
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM worker_payments WHERE worker_id = :workerId")
     fun getTotalPaidByWorker(workerId: String): Flow<Double>
 
-    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM worker_payments WHERE object_id = :objectId")
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM worker_payments WHERE (payer_object_id = :objectId) OR (payer_object_id IS NULL AND object_id = :objectId)")
     fun getTotalPaidByObject(objectId: String): Flow<Double>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.DateUtil
+import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.PaymentType
 import uz.buildflow.app.domain.model.WorkerPayment
 import uz.buildflow.app.presentation.common.AmountInputField
@@ -25,9 +26,11 @@ import uz.buildflow.app.presentation.common.AmountInputField
 fun AddWorkerPaymentSheet(
     existingPayment: WorkerPayment? = null,
     defaultDate: String = DateUtil.today(),
+    availableObjects: List<BuildObject> = emptyList(),
+    currentObjectId: String = "",
     onDismiss: () -> Unit,
     onDelete: ((WorkerPayment) -> Unit)? = null,
-    onSave: (amount: Double, date: String, type: PaymentType, description: String?, isPaid: Boolean) -> Unit
+    onSave: (amount: Double, date: String, type: PaymentType, description: String?, isPaid: Boolean, payerObjectId: String?) -> Unit
 ) {
     val targetDate = remember { existingPayment?.date ?: defaultDate }
     var amountStr by remember {
@@ -36,9 +39,13 @@ fun AddWorkerPaymentSheet(
     var selectedType by remember {
         mutableStateOf(if (existingPayment?.type == PaymentType.SALARY) PaymentType.SALARY else PaymentType.ADVANCE)
     }
+    var selectedPayerObjectId by remember {
+        mutableStateOf(existingPayment?.payerObjectId)
+    }
     var description by remember {
         mutableStateOf(existingPayment?.description ?: "")
     }
+    var isObjectMenuExpanded by remember { mutableStateOf(false) }
 
     val isEditMode = existingPayment != null && existingPayment.amount > 0
     val isValid = amountStr.isNotBlank()
@@ -98,44 +105,73 @@ fun AddWorkerPaymentSheet(
                 label = "To'lov summasi (so'm)"
             )
 
+            // KROSS-OBYEKT: Qaysi obyekt kassasidan to'lanadi?
+            if (availableObjects.isNotEmpty()) {
+                val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
+                val currentObj = availableObjects.find { it.id == currentObjectId }
+                val displayName = selectedObj?.name ?: "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"
+
+                ExposedDropdownMenuBox(
+                    expanded = isObjectMenuExpanded,
+                    onExpandedChange = { isObjectMenuExpanded = !isObjectMenuExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = displayName,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("To'lov manbasi (Obyekt kassasi)") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isObjectMenuExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = isObjectMenuExpanded,
+                        onDismissRequest = { isObjectMenuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)") },
+                            onClick = {
+                                selectedPayerObjectId = null
+                                isObjectMenuExpanded = false
+                            }
+                        )
+                        availableObjects.filter { it.id != currentObjectId }.forEach { objItem ->
+                            DropdownMenuItem(
+                                text = { Text("${objItem.name} kassasidan") },
+                                onClick = {
+                                    selectedPayerObjectId = objItem.id
+                                    isObjectMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
-                label = { Text("Izoh (masalan: Naqd berildi, kartaga o'tkazildi)") },
+                label = { Text("Izoh (ixtiyoriy)") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             )
 
-            // ASOSIY TUGMALAR: Xuddi Bonus kabi [Pul berildi] va [Qarzga yozish]
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Button(
+                onClick = {
+                    val amt = amountStr.toDoubleOrNull() ?: 0.0
+                    onSave(amt, targetDate, selectedType, description.trim().ifBlank { null }, true, selectedPayerObjectId)
+                },
+                enabled = isValid,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess, contentColor = Color.White)
             ) {
-                Button(
-                    onClick = {
-                        val amt = amountStr.toDoubleOrNull() ?: 0.0
-                        onSave(amt, targetDate, selectedType, description.trim().ifBlank { null }, true)
-                    },
-                    enabled = isValid,
-                    modifier = Modifier.weight(1f).height(46.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess, contentColor = Color.White)
-                ) {
-                    Text("Pul berildi", color = Color.White, fontSize = 13.sp)
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        val amt = amountStr.toDoubleOrNull() ?: 0.0
-                        onSave(amt, targetDate, selectedType, description.trim().ifBlank { null }, false)
-                    },
-                    enabled = isValid,
-                    modifier = Modifier.weight(1f).height(46.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepBluePrimary)
-                ) {
-                    Text("Qarzga yozish", color = DeepBluePrimary, fontSize = 13.sp)
-                }
+                Text("Pul berildi (Kassadan chiqim)", color = Color.White)
             }
 
             if (isEditMode && onDelete != null && existingPayment != null) {
@@ -145,12 +181,10 @@ fun AddWorkerPaymentSheet(
                         .fillMaxWidth()
                         .height(44.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = RoseExpense
-                    )
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RoseExpense)
                 ) {
-                    Icon(imageVector = Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = RoseExpense)
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(imageVector = Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp), tint = RoseExpense)
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text("To'lovni o'chirish", color = RoseExpense, fontSize = 13.sp)
                 }
             }

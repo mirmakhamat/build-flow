@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.*
+import uz.buildflow.app.domain.repository.ObjectRepository
 import uz.buildflow.app.domain.repository.TransactionRepository
 import uz.buildflow.app.domain.repository.WorkerDayRepository
 import uz.buildflow.app.domain.repository.WorkerRepository
@@ -19,6 +20,7 @@ data class WorkerDetailUiState(
     val days: List<WorkerDay> = emptyList(),
     val payments: List<WorkerPayment> = emptyList(),
     val generalBonuses: List<GeneralBonus> = emptyList(),
+    val availableObjects: List<BuildObject> = emptyList(),
     val selectedDate: String? = null,
     val selectedDayRecord: WorkerDay? = null,
     val selectedBonus: GeneralBonus? = null,
@@ -41,6 +43,7 @@ class WorkerDetailViewModel(
     private val workerRepository: WorkerRepository,
     private val workerDayRepository: WorkerDayRepository,
     private val transactionRepository: TransactionRepository,
+    private val objectRepository: ObjectRepository,
     private val getWorkerStatsUseCase: GetWorkerStatsUseCase
 ) : ViewModel() {
 
@@ -59,28 +62,36 @@ class WorkerDetailViewModel(
     }
 
     private fun loadWorkerData() {
+        viewModelScope.launch {
+            objectRepository.getAllObjects().collect { objList ->
+                _uiState.update { it.copy(availableObjects = objList) }
+            }
+        }
+
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             combine(
-                workerRepository.getWorkerById(workerId),
-                getWorkerStatsUseCase(workerId),
-                workerDayRepository.getDaysByWorker(workerId),
-                transactionRepository.getPaymentsByWorker(workerId),
-                workerDayRepository.getGeneralBonusesByWorker(workerId)
-            ) { worker, stats, days, paymentsList, generalBonuses ->
-                val currentSelectedDate = _uiState.value.selectedDate
-                val currentDayRec = if (currentSelectedDate != null) days.find { it.date == currentSelectedDate } else _uiState.value.selectedDayRecord
-
+                combine(
+                    workerRepository.getWorkerById(workerId),
+                    getWorkerStatsUseCase(workerId),
+                    workerDayRepository.getDaysByWorker(workerId)
+                ) { worker, stats, days -> Triple(worker, stats, days) },
+                combine(
+                    transactionRepository.getPaymentsByWorker(workerId),
+                    workerDayRepository.getGeneralBonusesByWorker(workerId)
+                ) { payments, bonuses -> Pair(payments, bonuses) }
+            ) { (worker, stats, days), (payments, bonuses) ->
                 WorkerDetailUiState(
                     worker = worker,
                     stats = stats,
                     days = days,
-                    payments = paymentsList,
-                    generalBonuses = generalBonuses,
+                    payments = payments,
+                    generalBonuses = bonuses,
+                    availableObjects = _uiState.value.availableObjects,
+                    selectedDate = _uiState.value.selectedDate,
+                    selectedDayRecord = _uiState.value.selectedDayRecord,
                     selectedBonus = _uiState.value.selectedBonus,
                     selectedPayment = _uiState.value.selectedPayment,
-                    selectedDayRecord = currentDayRec,
-                    selectedDate = currentSelectedDate,
                     isDayEditSheetOpen = _uiState.value.isDayEditSheetOpen,
                     isBonusSheetOpen = _uiState.value.isBonusSheetOpen,
                     isPaymentSheetOpen = _uiState.value.isPaymentSheetOpen,
@@ -94,23 +105,33 @@ class WorkerDetailViewModel(
     }
 
     fun selectDateForEdit(date: String) {
-        viewModelScope.launch {
-            val record = workerDayRepository.getDayByWorkerAndDate(workerId, date)
-            _uiState.update {
-                it.copy(
-                    selectedDate = date,
-                    selectedDayRecord = record,
-                    isDayEditSheetOpen = true
-                )
-            }
+        val existingRecord = _uiState.value.days.find { it.date == date }
+        _uiState.update {
+            it.copy(
+                selectedDate = date,
+                selectedDayRecord = existingRecord,
+                isDayEditSheetOpen = true
+            )
         }
     }
 
     fun closeDayEditSheet() {
-        _uiState.update { it.copy(isDayEditSheetOpen = false, selectedDate = null, selectedDayRecord = null) }
+        _uiState.update {
+            it.copy(
+                isDayEditSheetOpen = false,
+                selectedDate = null,
+                selectedDayRecord = null
+            )
+        }
     }
 
-    fun saveDayRecord(status: AttendanceStatus, paymentAmount: Double, isPaid: Boolean, note: String?) {
+    fun saveDayRecord(
+        status: AttendanceStatus,
+        paymentAmount: Double,
+        isPaid: Boolean,
+        note: String?,
+        payerObjectId: String? = null
+    ) {
         viewModelScope.launch {
             val date = _uiState.value.selectedDate ?: return@launch
             val worker = _uiState.value.worker ?: return@launch
@@ -144,11 +165,18 @@ class WorkerDetailViewModel(
 
             if (isPaid && paymentAmount > 0) {
                 if (existingDaySalaryPayment != null) {
-                    transactionRepository.updateWorkerPayment(existingDaySalaryPayment.copy(amount = paymentAmount))
+                    transactionRepository.updateWorkerPayment(
+                        existingDaySalaryPayment.copy(
+                            amount = paymentAmount,
+                            payerObjectId = payerObjectId,
+                            description = "${DateUtil.formatToDisplay(date)} kunlik ish haqi to'landi"
+                        )
+                    )
                 } else {
                     val payment = WorkerPayment(
                         workerId = workerId,
                         objectId = worker.objectId,
+                        payerObjectId = payerObjectId,
                         amount = paymentAmount,
                         date = date,
                         type = PaymentType.SALARY,
@@ -164,7 +192,7 @@ class WorkerDetailViewModel(
         }
     }
 
-    fun payForDaySalary(record: WorkerDay) {
+    fun payForDaySalary(record: WorkerDay, payerObjectId: String? = null) {
         viewModelScope.launch {
             val worker = _uiState.value.worker ?: return@launch
             val updated = record.copy(paymentStatus = PaymentStatus.PAID, updatedAt = System.currentTimeMillis())
@@ -177,6 +205,7 @@ class WorkerDetailViewModel(
                 transactionRepository.updateWorkerPayment(
                     existingDaySalaryPayment.copy(
                         amount = record.paymentAmount,
+                        payerObjectId = payerObjectId,
                         description = "${DateUtil.formatToDisplay(record.date)} kunlik ish haqi to'landi"
                     )
                 )
@@ -184,6 +213,7 @@ class WorkerDetailViewModel(
                 val payment = WorkerPayment(
                     workerId = workerId,
                     objectId = worker.objectId,
+                    payerObjectId = payerObjectId,
                     amount = record.paymentAmount,
                     date = record.date,
                     type = PaymentType.SALARY,
@@ -221,7 +251,7 @@ class WorkerDetailViewModel(
 
     // BONUSLAR
     fun openAddBonus(date: String? = null) {
-        val targetDate = date ?: _uiState.value.selectedDate ?: uz.buildflow.app.core.util.DateUtil.today()
+        val targetDate = date ?: _uiState.value.selectedDate ?: DateUtil.today()
         val templateBonus = GeneralBonus(workerId = workerId, objectId = _uiState.value.worker?.objectId ?: "", amount = 0.0, date = targetDate)
         _uiState.update { it.copy(selectedBonus = templateBonus, isBonusSheetOpen = true) }
     }
@@ -234,7 +264,7 @@ class WorkerDetailViewModel(
         _uiState.update { it.copy(isBonusSheetOpen = false, selectedBonus = null) }
     }
 
-    fun saveGeneralBonus(amount: Double, date: String, reason: String?, isPaid: Boolean) {
+    fun saveGeneralBonus(amount: Double, date: String, reason: String?, isPaid: Boolean, payerObjectId: String? = null) {
         viewModelScope.launch {
             val worker = _uiState.value.worker ?: return@launch
             val existing = _uiState.value.selectedBonus
@@ -263,11 +293,18 @@ class WorkerDetailViewModel(
             if (isPaid && amount > 0) {
                 val desc = reason?.ifBlank { null } ?: "${DateUtil.formatToDisplay(date)} bonusi to'landi"
                 if (existingBonusPayment != null) {
-                    transactionRepository.updateWorkerPayment(existingBonusPayment.copy(amount = amount, description = desc))
+                    transactionRepository.updateWorkerPayment(
+                        existingBonusPayment.copy(
+                            amount = amount,
+                            payerObjectId = payerObjectId,
+                            description = desc
+                        )
+                    )
                 } else {
                     val payment = WorkerPayment(
                         workerId = workerId,
                         objectId = worker.objectId,
+                        payerObjectId = payerObjectId,
                         amount = amount,
                         date = date,
                         type = PaymentType.BONUS_PAYOUT,
@@ -283,19 +320,26 @@ class WorkerDetailViewModel(
         }
     }
 
-    fun payForBonus(bonus: GeneralBonus) {
+    fun payForBonus(bonus: GeneralBonus, payerObjectId: String? = null) {
         viewModelScope.launch {
             val worker = _uiState.value.worker ?: return@launch
             val existingPayments = transactionRepository.getPaymentsByWorker(workerId).firstOrNull() ?: emptyList()
             val existingBonusPayment = existingPayments.find { it.date == bonus.date && it.type == PaymentType.BONUS_PAYOUT }
 
+            val desc = bonus.reason?.ifBlank { null } ?: "${DateUtil.formatToDisplay(bonus.date)} bonusi to'landi"
             if (existingBonusPayment != null) {
-                transactionRepository.updateWorkerPayment(existingBonusPayment.copy(amount = bonus.amount))
+                transactionRepository.updateWorkerPayment(
+                    existingBonusPayment.copy(
+                        amount = bonus.amount,
+                        payerObjectId = payerObjectId,
+                        description = desc
+                    )
+                )
             } else {
-                val desc = bonus.reason?.ifBlank { null } ?: "${DateUtil.formatToDisplay(bonus.date)} bonusi to'landi"
                 val payment = WorkerPayment(
                     workerId = workerId,
                     objectId = worker.objectId,
+                    payerObjectId = payerObjectId,
                     amount = bonus.amount,
                     date = bonus.date,
                     type = PaymentType.BONUS_PAYOUT,
@@ -306,38 +350,36 @@ class WorkerDetailViewModel(
         }
     }
 
-    fun markBonusAsUnpaid(bonus: GeneralBonus) {
+    fun markBonusUnpaid(bonus: GeneralBonus) {
         viewModelScope.launch {
             val existingPayments = transactionRepository.getPaymentsByWorker(workerId).firstOrNull() ?: emptyList()
-            val existingBonusPayment = existingPayments.find { it.date == bonus.date && it.type == PaymentType.BONUS_PAYOUT }
-            if (existingBonusPayment != null) {
-                transactionRepository.deleteWorkerPayment(existingBonusPayment)
+            val bonusPayment = existingPayments.find { it.date == bonus.date && it.type == PaymentType.BONUS_PAYOUT }
+            if (bonusPayment != null) {
+                transactionRepository.deleteWorkerPayment(bonusPayment)
             }
         }
+    }
+
+    fun markBonusAsUnpaid(bonus: GeneralBonus) {
+        markBonusUnpaid(bonus)
     }
 
     fun deleteGeneralBonus(bonus: GeneralBonus) {
         viewModelScope.launch {
             workerDayRepository.deleteGeneralBonus(bonus)
             val existingPayments = transactionRepository.getPaymentsByWorker(workerId).firstOrNull() ?: emptyList()
-            val paymentToDelete = existingPayments.find { it.date == bonus.date && it.type == PaymentType.BONUS_PAYOUT }
-            if (paymentToDelete != null) {
-                transactionRepository.deleteWorkerPayment(paymentToDelete)
+            val bonusPayment = existingPayments.find { it.date == bonus.date && it.type == PaymentType.BONUS_PAYOUT }
+            if (bonusPayment != null) {
+                transactionRepository.deleteWorkerPayment(bonusPayment)
             }
             closeBonusSheet()
         }
     }
 
-    // TO'LOVLAR & AVANSLAR
+    // TO'LOVLAR (WorkerPayment)
     fun openAddPayment(date: String? = null) {
-        val targetDate = date ?: _uiState.value.selectedDate ?: uz.buildflow.app.core.util.DateUtil.today()
-        val templatePayment = WorkerPayment(
-            workerId = workerId,
-            objectId = _uiState.value.worker?.objectId ?: "",
-            amount = 0.0,
-            date = targetDate,
-            type = PaymentType.ADVANCE
-        )
+        val targetDate = date ?: _uiState.value.selectedDate ?: DateUtil.today()
+        val templatePayment = WorkerPayment(workerId = workerId, objectId = _uiState.value.worker?.objectId ?: "", amount = 0.0, date = targetDate)
         _uiState.update { it.copy(selectedPayment = templatePayment, isPaymentSheetOpen = true) }
     }
 
@@ -349,7 +391,7 @@ class WorkerDetailViewModel(
         _uiState.update { it.copy(isPaymentSheetOpen = false, selectedPayment = null) }
     }
 
-    fun savePayment(amount: Double, date: String, type: PaymentType, description: String?, isPaid: Boolean) {
+    fun savePayment(amount: Double, date: String, type: PaymentType, description: String?, isPaid: Boolean = true, payerObjectId: String? = null) {
         viewModelScope.launch {
             val worker = _uiState.value.worker ?: return@launch
             val existing = _uiState.value.selectedPayment
@@ -358,8 +400,9 @@ class WorkerDetailViewModel(
                 if (existing != null && existing.amount > 0) {
                     val updated = existing.copy(
                         amount = amount,
-                        date = date,
+                        date = date.ifBlank { DateUtil.today() },
                         type = type,
+                        payerObjectId = payerObjectId,
                         description = description
                     )
                     transactionRepository.updateWorkerPayment(updated)
@@ -367,15 +410,15 @@ class WorkerDetailViewModel(
                     val payment = WorkerPayment(
                         workerId = workerId,
                         objectId = worker.objectId,
+                        payerObjectId = payerObjectId,
                         amount = amount,
-                        date = date,
+                        date = date.ifBlank { DateUtil.today() },
                         type = type,
                         description = description
                     )
                     transactionRepository.insertWorkerPayment(payment)
                 }
             } else if (!isPaid && existing != null) {
-                // Agar qarzga yozilsa va oldin to'lov bo'lgan bo'lsa, to'lov o'chiriladi
                 transactionRepository.deleteWorkerPayment(existing)
             }
             closePaymentSheet()
@@ -395,6 +438,7 @@ class WorkerDetailViewModel(
             workerRepository: WorkerRepository,
             workerDayRepository: WorkerDayRepository,
             transactionRepository: TransactionRepository,
+            objectRepository: ObjectRepository,
             getWorkerStatsUseCase: GetWorkerStatsUseCase
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -404,6 +448,7 @@ class WorkerDetailViewModel(
                     workerRepository,
                     workerDayRepository,
                     transactionRepository,
+                    objectRepository,
                     getWorkerStatsUseCase
                 ) as T
             }

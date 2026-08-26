@@ -7,14 +7,17 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import uz.buildflow.app.core.util.DateUtil
+import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.Expense
 import uz.buildflow.app.domain.model.ExpenseCategoryItem
 import uz.buildflow.app.domain.repository.ExpenseCategoryRepository
 import uz.buildflow.app.domain.repository.ExpenseRepository
+import uz.buildflow.app.domain.repository.ObjectRepository
 
 data class ExpensesUiState(
     val expenses: List<Expense> = emptyList(),
     val categories: List<ExpenseCategoryItem> = emptyList(),
+    val availableObjects: List<BuildObject> = emptyList(),
     val totalExpense: Double = 0.0,
     val selectedObjectId: String? = null,
     val selectedExpense: Expense? = null,
@@ -26,6 +29,7 @@ data class ExpensesUiState(
 class ExpensesViewModel(
     private val expenseRepository: ExpenseRepository,
     private val categoryRepository: ExpenseCategoryRepository,
+    private val objectRepository: ObjectRepository,
     initialObjectId: String? = null
 ) : ViewModel() {
 
@@ -52,6 +56,12 @@ class ExpensesViewModel(
         viewModelScope.launch {
             categoryRepository.getAllCategories().collect { catList ->
                 _uiState.update { it.copy(categories = catList) }
+            }
+        }
+
+        viewModelScope.launch {
+            objectRepository.getAllObjects().collect { objList ->
+                _uiState.update { it.copy(availableObjects = objList) }
             }
         }
 
@@ -94,7 +104,14 @@ class ExpensesViewModel(
         }
     }
 
-    fun saveExpense(category: String, amount: Double, date: String, description: String?, workerId: String?) {
+    fun saveExpense(
+        category: String,
+        amount: Double,
+        date: String,
+        description: String?,
+        workerId: String?,
+        payerObjectId: String? = null
+    ) {
         viewModelScope.launch {
             val objectId = _uiState.value.selectedObjectId ?: return@launch
             val existing = _uiState.value.selectedExpense
@@ -106,12 +123,14 @@ class ExpensesViewModel(
                     date = date.ifBlank { DateUtil.today() },
                     description = description,
                     workerId = workerId,
+                    payerObjectId = payerObjectId,
                     updatedAt = System.currentTimeMillis()
                 )
                 expenseRepository.updateExpense(updated)
             } else {
                 val expense = Expense(
                     objectId = objectId,
+                    payerObjectId = payerObjectId,
                     workerId = workerId,
                     category = category,
                     amount = amount,
@@ -135,11 +154,12 @@ class ExpensesViewModel(
         fun provideFactory(
             expenseRepository: ExpenseRepository,
             categoryRepository: ExpenseCategoryRepository,
+            objectRepository: ObjectRepository,
             initialObjectId: String? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return ExpensesViewModel(expenseRepository, categoryRepository, initialObjectId) as T
+                return ExpensesViewModel(expenseRepository, categoryRepository, objectRepository, initialObjectId) as T
             }
         }
     }
