@@ -307,7 +307,7 @@ fun ObjectDetailScreen(
                     ) {
                         Icon(imageVector = Icons.Default.Group, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Ishchilar")
+                        Text("Ishchilar", color=SurfaceLight)
                     }
 
                     Button(
@@ -320,7 +320,7 @@ fun ObjectDetailScreen(
                     ) {
                         Icon(imageVector = Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Xarajatlar")
+                        Text("Xarajatlar", color=SurfaceLight)
                     }
                 }
 
@@ -334,7 +334,7 @@ fun ObjectDetailScreen(
                 ) {
                     Icon(imageVector = Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Tushumlar (Daromad)")
+                    Text("Tushumlar (Daromad)", color=SurfaceLight)
                 }
 
                 // 6. Xarajatlar Taqsimoti
