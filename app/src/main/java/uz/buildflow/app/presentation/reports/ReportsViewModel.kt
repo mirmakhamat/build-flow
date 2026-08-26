@@ -32,9 +32,11 @@ data class ReportsUiState(
     val expenses: List<Expense> = emptyList(),
     val workerPayments: List<WorkerPayment> = emptyList(),
     val externalWorkerPayments: List<WorkerPayment> = emptyList(),
+    val externalPaidForThisWorkers: List<WorkerPayment> = emptyList(),
     val externalExpensesPaid: List<Expense> = emptyList(),
     val workerStatsList: List<WorkerStats> = emptyList(),
     val availableObjects: List<BuildObject> = emptyList(),
+    val allWorkers: List<Worker> = emptyList(),
     val selectedDrillDownType: DrillDownType? = null,
     val selectedCategoryName: String? = null,
     val isLoading: Boolean = true
@@ -80,14 +82,40 @@ class ReportsViewModel(
                 }
             }
 
-            // 4. Objects
+            // 4. Worker Payments
+            launch {
+                transactionRepository.getPaymentsByObject(objectId).collect { list ->
+                    _uiState.update { it.copy(workerPayments = list) }
+                }
+            }
+
+            // 5. External Worker Payments (bu kassa to'lagan boshqa ishchilarga)
+            launch {
+                transactionRepository.getPaymentsPaidForOtherObjectsWorkers(objectId).collect { list ->
+                    _uiState.update { it.copy(externalWorkerPayments = list) }
+                }
+            }
+
+            // 6. External Paid By Others For This Workers (boshqa kassa to'lagan bu ishchilarga)
+            launch {
+                transactionRepository.getPaymentsPaidByOtherObjectsForThisWorkers(objectId).collect { list ->
+                    _uiState.update { it.copy(externalPaidForThisWorkers = list) }
+                }
+            }
+
+            // 7. Objects & All Workers
             launch {
                 objectRepository.getAllObjects().collect { list ->
                     _uiState.update { it.copy(availableObjects = list) }
                 }
             }
+            launch {
+                workerRepository.getAllWorkers().collect { list ->
+                    _uiState.update { it.copy(allWorkers = list) }
+                }
+            }
 
-            // 5. Workers & Debts
+            // 8. Workers & Debts
             launch {
                 workerRepository.getWorkersByObject(objectId).flatMapLatest { workerList ->
                     if (workerList.isEmpty()) {

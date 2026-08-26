@@ -102,6 +102,8 @@ data class ObjectFinancialSummary(
     val objectName: String,
     val totalPrice: Double,
     val totalReceivedIncome: Double,
+    val totalClientIncome: Double = totalReceivedIncome,
+    val totalTransfersIn: Double = 0.0,
     val totalWorkerSalary: Double,
     val totalDailyBonuses: Double,
     val totalGeneralBonuses: Double,
@@ -130,7 +132,7 @@ data class ObjectFinancialSummary(
         get() = ((totalWorkerSalary + totalBonuses) - totalPaidToWorkers).coerceAtLeast(0.0)
 
     val remainingReceivable: Double
-        get() = (totalPrice - totalReceivedIncome).coerceAtLeast(0.0)
+        get() = (totalPrice - totalClientIncome).coerceAtLeast(0.0)
 
     val totalCashOutflow: Double
         get() = totalCashPaidToWorkers + totalPaidOtherExpenses

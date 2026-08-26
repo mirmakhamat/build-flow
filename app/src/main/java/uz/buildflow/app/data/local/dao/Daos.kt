@@ -204,6 +204,12 @@ interface MoneyTransactionDao {
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM money_transactions WHERE object_id = :objectId AND type = 'INCOME'")
     fun getTotalIncomeByObject(objectId: String): Flow<Double>
 
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM money_transactions WHERE object_id = :objectId AND type = 'INCOME' AND (description IS NULL OR (description NOT LIKE '[%kassasidan o''tkazma]%'))")
+    fun getTotalClientIncomeByObject(objectId: String): Flow<Double>
+
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM money_transactions WHERE object_id = :objectId AND type = 'INCOME' AND description LIKE '[%kassasidan o''tkazma]%'")
+    fun getTotalTransfersInByObject(objectId: String): Flow<Double>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: MoneyTransactionEntity)
 
@@ -219,6 +225,9 @@ interface WorkerPaymentDao {
     @Query("SELECT * FROM worker_payments WHERE worker_id = :workerId ORDER BY date DESC, created_at DESC")
     fun getPaymentsByWorker(workerId: String): Flow<List<WorkerPaymentEntity>>
 
+    @Query("SELECT * FROM worker_payments WHERE object_id = :objectId ORDER BY date DESC, created_at DESC")
+    fun getPaymentsByObject(objectId: String): Flow<List<WorkerPaymentEntity>>
+
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM worker_payments WHERE worker_id = :workerId")
     fun getTotalPaidByWorker(workerId: String): Flow<Double>
 
@@ -231,8 +240,14 @@ interface WorkerPaymentDao {
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM worker_payments WHERE payer_object_id = :objectId AND object_id != :objectId")
     fun getTotalPaidForOtherObjectsWorkers(objectId: String): Flow<Double>
 
+    @Query("SELECT * FROM worker_payments WHERE payer_object_id = :objectId AND object_id != :objectId ORDER BY date DESC, created_at DESC")
+    fun getPaymentsPaidForOtherObjectsWorkers(objectId: String): Flow<List<WorkerPaymentEntity>>
+
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM worker_payments WHERE object_id = :objectId AND payer_object_id IS NOT NULL AND payer_object_id != :objectId")
     fun getTotalPaidByOtherObjectsForThisWorkers(objectId: String): Flow<Double>
+
+    @Query("SELECT * FROM worker_payments WHERE object_id = :objectId AND payer_object_id IS NOT NULL AND payer_object_id != :objectId ORDER BY date DESC, created_at DESC")
+    fun getPaymentsPaidByOtherObjectsForThisWorkers(objectId: String): Flow<List<WorkerPaymentEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPayment(payment: WorkerPaymentEntity)

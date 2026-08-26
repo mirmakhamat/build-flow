@@ -70,17 +70,22 @@ interface ExpenseRepository {
 interface TransactionRepository {
     fun getTransactionsByObject(objectId: String): Flow<List<MoneyTransaction>>
     fun getTotalIncomeByObject(objectId: String): Flow<Double>
+    fun getTotalClientIncomeByObject(objectId: String): Flow<Double>
+    fun getTotalTransfersInByObject(objectId: String): Flow<Double>
     suspend fun insertTransaction(transaction: MoneyTransaction)
     suspend fun updateTransaction(transaction: MoneyTransaction)
     suspend fun deleteTransaction(transaction: MoneyTransaction)
 
     // Worker Payments
     fun getPaymentsByWorker(workerId: String): Flow<List<WorkerPayment>>
+    fun getPaymentsByObject(objectId: String): Flow<List<WorkerPayment>>
     fun getTotalPaidByWorker(workerId: String): Flow<Double>
     fun getTotalPaidForWorkersOfObject(objectId: String): Flow<Double>
     fun getTotalPaidByObject(objectId: String): Flow<Double>
     fun getTotalPaidForOtherObjectsWorkers(objectId: String): Flow<Double>
+    fun getPaymentsPaidForOtherObjectsWorkers(objectId: String): Flow<List<WorkerPayment>>
     fun getTotalPaidByOtherObjectsForThisWorkers(objectId: String): Flow<Double>
+    fun getPaymentsPaidByOtherObjectsForThisWorkers(objectId: String): Flow<List<WorkerPayment>>
     suspend fun insertWorkerPayment(payment: WorkerPayment)
     suspend fun updateWorkerPayment(payment: WorkerPayment)
     suspend fun deleteWorkerPayment(payment: WorkerPayment)

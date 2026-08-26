@@ -126,11 +126,19 @@ fun ReportsScreen(
                                 isClickable = false
                             )
                             InteractiveBreakdownRow(
-                                title = "Tushgan pul (Olingan avanslar)",
-                                amount = summary?.totalReceivedIncome ?: 0.0,
+                                title = "Tushgan pul (Mijoz avanslari)",
+                                amount = summary?.totalClientIncome ?: 0.0,
                                 customColor = EmeraldSuccess,
                                 onClick = { viewModel.openDrillDown(DrillDownType.INCOMES) }
                             )
+                            if ((summary?.totalTransfersIn ?: 0.0) > 0) {
+                                InteractiveBreakdownRow(
+                                    title = "  ↳ Boshqa obyekt kassasidan kirgan o'tkazma",
+                                    amount = summary?.totalTransfersIn ?: 0.0,
+                                    customColor = Color(0xFF8B5CF6),
+                                    onClick = { viewModel.openDrillDown(DrillDownType.INCOMES) }
+                                )
+                            }
                             InteractiveBreakdownRow(
                                 title = "Mijozdan qolgan summa (Qoldiq)",
                                 amount = summary?.remainingReceivable ?: 0.0,
@@ -170,7 +178,7 @@ fun ReportsScreen(
                                     title = "  ↳ Boshqa obyekt hisobidan qoplangan",
                                     amount = summary?.totalPaidByOtherObjectsForThisWorkers ?: 0.0,
                                     customColor = DeepBluePrimary,
-                                    onClick = { viewModel.openDrillDown(DrillDownType.WORKER_PAYMENTS) }
+                                    onClick = { viewModel.openDrillDown(DrillDownType.EXTERNAL_PAID_FOR_THIS_WORKERS) }
                                 )
                             }
 
@@ -436,7 +444,7 @@ fun FinancialHealthCard(
 
             HorizontalDivider(color = BorderColor.copy(alpha = 0.5f))
 
-            // 2. MIJOZ AVANSLARI VA ISHCHILAR QARZI TAHLILI (Bosilganda Drill-down ochiladi!)
+            // 2. MIJOZ AVANSLARI VA ISHCHILAR QARZI TAHLILI
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -451,7 +459,7 @@ fun FinancialHealthCard(
                     Column(modifier = Modifier.padding(10.dp)) {
                         Text(text = "Mijoz To'lovi", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                         Text(
-                            text = CurrencyFormatter.formatAmountShort(summary.totalReceivedIncome),
+                            text = CurrencyFormatter.formatAmountShort(summary.totalClientIncome),
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                             color = EmeraldSuccess
                         )
@@ -593,7 +601,7 @@ fun ExpenseDistributionChartCard(
                 }
             }
 
-            // Kategoriya qatorlari (Har bir kategoriya bosiladi!)
+            // Kategoriya qatorlari
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 summary.categoryBreakdowns.forEachIndexed { index, item ->
                     val percentage = ((item.totalAmount / totalExpenseSum) * 100).toInt()
@@ -662,6 +670,7 @@ fun ReportDrillDownBottomSheet(
     val drillType = uiState.selectedDrillDownType ?: return
     val categoryName = uiState.selectedCategoryName
     val allObjsMap = remember(uiState.availableObjects) { uiState.availableObjects.associateBy { it.id } }
+    val allWorkersMap = remember(uiState.allWorkers) { uiState.allWorkers.associateBy { it.id } }
 
     val title = when (drillType) {
         DrillDownType.INCOMES -> "Tushumlar va Mijoz To'lovlari"
@@ -724,6 +733,82 @@ fun ReportDrillDownBottomSheet(
                                     amountColor = EmeraldSuccess,
                                     badgeText = if (isTransfer) "Kassalararo o'tkazma" else "Mijoz to'lovi",
                                     badgeColor = if (isTransfer) Color(0xFF8B5CF6) else EmeraldSuccess
+                                )
+                            }
+                        }
+                    }
+                }
+
+                DrillDownType.WORKER_PAYMENTS -> {
+                    val list = uiState.workerPayments
+                    if (list.isEmpty()) {
+                        EmptyDrillDownView("Ishchilarga to'lovlar yozuvlari topilmadi")
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(list, key = { it.id }) { wp ->
+                                val worker = allWorkersMap[wp.workerId]
+                                val workerName = worker?.name ?: "Noma'lum ishchi"
+                                val isOtherPayer = wp.payerObjectId != null && wp.payerObjectId != wp.objectId
+                                val payerObjName = allObjsMap[wp.payerObjectId]?.name ?: "Boshqa obyekt"
+
+                                DrillDownCard(
+                                    date = wp.date,
+                                    mainText = workerName,
+                                    subText = if (!wp.description.isNullOrBlank()) "${wp.type.name}: ${wp.description}" else wp.type.name,
+                                    amount = wp.amount,
+                                    amountColor = EmeraldSuccess,
+                                    badgeText = if (isOtherPayer) "$payerObjName hisobidan" else null,
+                                    badgeColor = DeepBluePrimary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                DrillDownType.EXTERNAL_WORKERS_PAID -> {
+                    val list = uiState.externalWorkerPayments
+                    if (list.isEmpty()) {
+                        EmptyDrillDownView("Boshqa obyekt ishchilariga to'langan to'lovlar yo'q")
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(list, key = { it.id }) { wp ->
+                                val worker = allWorkersMap[wp.workerId]
+                                val workerName = worker?.name ?: "Noma'lum ishchi"
+                                val workerObjName = allObjsMap[wp.objectId]?.name ?: "Boshqa obyekt"
+
+                                DrillDownCard(
+                                    date = wp.date,
+                                    mainText = workerName,
+                                    subText = "$workerObjName ishchisi | ${wp.type.name}: ${wp.description ?: ""}",
+                                    amount = wp.amount,
+                                    amountColor = AmberWarning,
+                                    badgeText = "$workerObjName ishchisi uchun",
+                                    badgeColor = AmberWarning
+                                )
+                            }
+                        }
+                    }
+                }
+
+                DrillDownType.EXTERNAL_PAID_FOR_THIS_WORKERS -> {
+                    val list = uiState.externalPaidForThisWorkers
+                    if (list.isEmpty()) {
+                        EmptyDrillDownView("Boshqa obyekt hisobidan to'langan ish haqlari yo'q")
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(list, key = { it.id }) { wp ->
+                                val worker = allWorkersMap[wp.workerId]
+                                val workerName = worker?.name ?: "Noma'lum ishchi"
+                                val payerObjName = allObjsMap[wp.payerObjectId]?.name ?: "Boshqa obyekt"
+
+                                DrillDownCard(
+                                    date = wp.date,
+                                    mainText = workerName,
+                                    subText = "$payerObjName kassasidan to'langan",
+                                    amount = wp.amount,
+                                    amountColor = DeepBluePrimary,
+                                    badgeText = "$payerObjName hisobidan",
+                                    badgeColor = DeepBluePrimary
                                 )
                             }
                         }

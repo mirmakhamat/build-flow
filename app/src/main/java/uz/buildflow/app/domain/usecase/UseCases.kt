@@ -2,6 +2,8 @@ package uz.buildflow.app.domain.usecase
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import uz.buildflow.app.domain.model.*
 import uz.buildflow.app.domain.repository.*
 
@@ -16,29 +18,31 @@ class GetObjectFinancialSummaryUseCase(
         val flow1 = combine(
             objectRepository.getObjectById(objectId),
             transactionRepository.getTotalIncomeByObject(objectId),
-            workerDayRepository.getTotalSalaryByObject(objectId),
-            workerDayRepository.getTotalDailyBonusesByObject(objectId),
-            workerDayRepository.getTotalGeneralBonusesByObject(objectId)
-        ) { obj, income, salary, dailyBonus, generalBonus ->
-            SummaryPart1(obj, income, salary, dailyBonus, generalBonus)
+            transactionRepository.getTotalClientIncomeByObject(objectId),
+            transactionRepository.getTotalTransfersInByObject(objectId),
+            workerDayRepository.getTotalSalaryByObject(objectId)
+        ) { obj, income, clientIncome, transfersIn, salary ->
+            SummaryPart1(obj, income, clientIncome, transfersIn, salary)
         }
 
         val flow2 = combine(
+            workerDayRepository.getTotalDailyBonusesByObject(objectId),
+            workerDayRepository.getTotalGeneralBonusesByObject(objectId),
             transactionRepository.getTotalPaidForWorkersOfObject(objectId),
             transactionRepository.getTotalPaidByObject(objectId),
-            transactionRepository.getTotalPaidForOtherObjectsWorkers(objectId),
-            transactionRepository.getTotalPaidByOtherObjectsForThisWorkers(objectId)
-        ) { paidForWorkers, cashPaidWorkers, paidForOtherWorkers, paidByOtherForWorkers ->
-            SummaryPart2(paidForWorkers, cashPaidWorkers, paidForOtherWorkers, paidByOtherForWorkers)
+            transactionRepository.getTotalPaidForOtherObjectsWorkers(objectId)
+        ) { dailyBonus, generalBonus, paidForWorkers, cashPaidWorkers, paidForOtherWorkers ->
+            SummaryPart2(dailyBonus, generalBonus, paidForWorkers, cashPaidWorkers, paidForOtherWorkers)
         }
 
         val flow3 = combine(
+            transactionRepository.getTotalPaidByOtherObjectsForThisWorkers(objectId),
             expenseRepository.getTotalExpenseByObject(objectId),
             expenseRepository.getTotalCashExpensePaidByObject(objectId),
             expenseRepository.getTotalExpensesPaidForOtherObjects(objectId),
             expenseRepository.getTotalExpensesPaidByOtherObjects(objectId)
-        ) { otherExpenses, paidOtherExpenses, expensesForOther, expensesByOther ->
-            SummaryPart3(otherExpenses, paidOtherExpenses, expensesForOther, expensesByOther)
+        ) { paidByOtherForWorkers, otherExpenses, paidOtherExpenses, expensesForOther, expensesByOther ->
+            SummaryPart3(paidByOtherForWorkers, otherExpenses, paidOtherExpenses, expensesForOther, expensesByOther)
         }
 
         val flow4 = combine(
@@ -57,13 +61,15 @@ class GetObjectFinancialSummaryUseCase(
                 objectName = obj.name,
                 totalPrice = obj.totalPrice,
                 totalReceivedIncome = p1.income,
+                totalClientIncome = p1.clientIncome,
+                totalTransfersIn = p1.transfersIn,
                 totalWorkerSalary = p1.salary,
-                totalDailyBonuses = p1.dailyBonus,
-                totalGeneralBonuses = p1.generalBonus,
+                totalDailyBonuses = p2.dailyBonus,
+                totalGeneralBonuses = p2.generalBonus,
                 totalPaidToWorkers = p2.paidForWorkers,
                 totalCashPaidToWorkers = p2.cashPaidWorkers,
                 totalPaidForOtherObjectsWorkers = p2.paidForOtherWorkers,
-                totalPaidByOtherObjectsForThisWorkers = p2.paidByOtherForWorkers,
+                totalPaidByOtherObjectsForThisWorkers = p3.paidByOtherForWorkers,
                 totalOtherExpenses = p3.otherExpenses,
                 totalPaidOtherExpenses = p3.paidOtherExpenses,
                 totalExpensesPaidForOtherObjects = p3.expensesForOther,
@@ -78,19 +84,21 @@ class GetObjectFinancialSummaryUseCase(
     private data class SummaryPart1(
         val obj: BuildObject?,
         val income: Double,
-        val salary: Double,
-        val dailyBonus: Double,
-        val generalBonus: Double
+        val clientIncome: Double,
+        val transfersIn: Double,
+        val salary: Double
     )
 
     private data class SummaryPart2(
+        val dailyBonus: Double,
+        val generalBonus: Double,
         val paidForWorkers: Double,
         val cashPaidWorkers: Double,
-        val paidForOtherWorkers: Double,
-        val paidByOtherForWorkers: Double
+        val paidForOtherWorkers: Double
     )
 
     private data class SummaryPart3(
+        val paidByOtherForWorkers: Double,
         val otherExpenses: Double,
         val paidOtherExpenses: Double,
         val expensesForOther: Double,
@@ -117,13 +125,13 @@ class GetWorkerStatsUseCase(
             workerDayRepository.getTotalGeneralBonusesByWorker(workerId),
             transactionRepository.getTotalPaidByWorker(workerId),
             workerDayRepository.getWorkedDaysCountByWorker(workerId)
-        ) { values ->
-            val worker = values[0] as? Worker ?: return@combine null
-            val salary = values[1] as Double
-            val dailyBonus = values[2] as Double
-            val generalBonus = values[3] as Double
-            val paid = values[4] as Double
-            val daysCount = values[5] as Int
+        ) { array ->
+            val worker = array[0] as? Worker ?: return@combine null
+            val salary = array[1] as? Double ?: 0.0
+            val dailyBonus = array[2] as? Double ?: 0.0
+            val generalBonus = array[3] as? Double ?: 0.0
+            val paid = array[4] as? Double ?: 0.0
+            val daysCount = array[5] as? Int ?: 0
 
             WorkerStats(
                 workerId = worker.id,

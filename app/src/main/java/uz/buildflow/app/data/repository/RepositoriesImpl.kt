@@ -164,6 +164,12 @@ class TransactionRepositoryImpl(
     override fun getTotalIncomeByObject(objectId: String): Flow<Double> =
         moneyTransactionDao.getTotalIncomeByObject(objectId)
 
+    override fun getTotalClientIncomeByObject(objectId: String): Flow<Double> =
+        moneyTransactionDao.getTotalClientIncomeByObject(objectId)
+
+    override fun getTotalTransfersInByObject(objectId: String): Flow<Double> =
+        moneyTransactionDao.getTotalTransfersInByObject(objectId)
+
     override suspend fun insertTransaction(transaction: MoneyTransaction) =
         moneyTransactionDao.insertTransaction(transaction.toEntity())
 
@@ -175,6 +181,9 @@ class TransactionRepositoryImpl(
 
     override fun getPaymentsByWorker(workerId: String): Flow<List<WorkerPayment>> =
         workerPaymentDao.getPaymentsByWorker(workerId).map { list -> list.map { it.toDomain() } }
+
+    override fun getPaymentsByObject(objectId: String): Flow<List<WorkerPayment>> =
+        workerPaymentDao.getPaymentsByObject(objectId).map { list -> list.map { it.toDomain() } }
 
     override fun getTotalPaidByWorker(workerId: String): Flow<Double> =
         workerPaymentDao.getTotalPaidByWorker(workerId)
@@ -188,8 +197,14 @@ class TransactionRepositoryImpl(
     override fun getTotalPaidForOtherObjectsWorkers(objectId: String): Flow<Double> =
         workerPaymentDao.getTotalPaidForOtherObjectsWorkers(objectId)
 
+    override fun getPaymentsPaidForOtherObjectsWorkers(objectId: String): Flow<List<WorkerPayment>> =
+        workerPaymentDao.getPaymentsPaidForOtherObjectsWorkers(objectId).map { list -> list.map { it.toDomain() } }
+
     override fun getTotalPaidByOtherObjectsForThisWorkers(objectId: String): Flow<Double> =
         workerPaymentDao.getTotalPaidByOtherObjectsForThisWorkers(objectId)
+
+    override fun getPaymentsPaidByOtherObjectsForThisWorkers(objectId: String): Flow<List<WorkerPayment>> =
+        workerPaymentDao.getPaymentsPaidByOtherObjectsForThisWorkers(objectId).map { list -> list.map { it.toDomain() } }
 
     override suspend fun insertWorkerPayment(payment: WorkerPayment) =
         workerPaymentDao.insertPayment(payment.toEntity())
