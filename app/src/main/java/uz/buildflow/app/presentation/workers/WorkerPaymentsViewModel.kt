@@ -78,7 +78,7 @@ class WorkerPaymentsViewModel(
         _uiState.update { it.copy(isAddSheetOpen = false, selectedPayment = null) }
     }
 
-    fun savePayment(amount: Double, date: String, type: PaymentType, description: String?, payerObjectId: String? = null) {
+    fun savePayment(amount: Double, date: String, type: PaymentType, description: String?, payerObjectId: String? = null, paymentDate: String? = null) {
         viewModelScope.launch {
             val objectId = if (!initialObjectId.isNullOrBlank()) {
                 initialObjectId
@@ -92,6 +92,7 @@ class WorkerPaymentsViewModel(
                 val updated = existing.copy(
                     amount = amount,
                     date = date.ifBlank { DateUtil.today() },
+                    paymentDate = paymentDate,
                     type = type,
                     payerObjectId = payerObjectId,
                     description = description
@@ -104,6 +105,7 @@ class WorkerPaymentsViewModel(
                     payerObjectId = payerObjectId,
                     amount = amount,
                     date = date.ifBlank { DateUtil.today() },
+                    paymentDate = paymentDate,
                     type = type,
                     description = description
                 )

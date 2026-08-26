@@ -221,6 +221,7 @@ data class WorkerPaymentEntity(
     @ColumnInfo(name = "payer_object_id") val payerObjectId: String? = null,
     val amount: Double,
     val date: String,
+    @ColumnInfo(name = "payment_date") val paymentDate: String? = null,
     val type: String,
     val description: String?,
     @ColumnInfo(name = "created_at") val createdAt: Long

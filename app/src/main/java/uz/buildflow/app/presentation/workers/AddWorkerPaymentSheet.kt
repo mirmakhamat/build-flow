@@ -30,9 +30,12 @@ fun AddWorkerPaymentSheet(
     currentObjectId: String = "",
     onDismiss: () -> Unit,
     onDelete: ((WorkerPayment) -> Unit)? = null,
-    onSave: (amount: Double, date: String, type: PaymentType, description: String?, isPaid: Boolean, payerObjectId: String?) -> Unit
+    onSave: (amount: Double, date: String, type: PaymentType, description: String?, isPaid: Boolean, payerObjectId: String?, paymentDate: String?) -> Unit
 ) {
     val targetDate = remember { existingPayment?.date ?: defaultDate }
+    var actualPaymentDate by remember {
+        mutableStateOf(existingPayment?.paymentDate ?: DateUtil.today())
+    }
     var amountStr by remember {
         mutableStateOf(if (existingPayment != null && existingPayment.amount > 0) existingPayment.amount.toLong().toString() else "")
     }
@@ -72,7 +75,7 @@ fun AddWorkerPaymentSheet(
                         style = MaterialTheme.typography.titleLarge
                     )
                     Text(
-                        text = DateUtil.formatToFullDisplay(targetDate),
+                        text = "Qaysi kun uchun: ${DateUtil.formatToFullDisplay(targetDate)}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = DeepBluePrimary
                     )
@@ -103,6 +106,15 @@ fun AddWorkerPaymentSheet(
                 value = amountStr,
                 onValueChange = { amountStr = it },
                 label = "To'lov summasi (so'm)"
+            )
+
+            OutlinedTextField(
+                value = actualPaymentDate,
+                onValueChange = { actualPaymentDate = it },
+                label = { Text("Pul berilgan sana (ixtiyoriy, YYYY-MM-DD)") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
             )
 
             // KROSS-OBYEKT: Qaysi obyekt kassasidan to'lanadi?
@@ -162,7 +174,7 @@ fun AddWorkerPaymentSheet(
             Button(
                 onClick = {
                     val amt = amountStr.toDoubleOrNull() ?: 0.0
-                    onSave(amt, targetDate, selectedType, description.trim().ifBlank { null }, true, selectedPayerObjectId)
+                    onSave(amt, targetDate, selectedType, description.trim().ifBlank { null }, true, selectedPayerObjectId, actualPaymentDate.trim().ifBlank { null })
                 },
                 enabled = isValid,
                 modifier = Modifier

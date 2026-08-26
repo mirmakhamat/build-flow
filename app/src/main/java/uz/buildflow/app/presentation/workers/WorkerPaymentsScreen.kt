@@ -126,9 +126,9 @@ fun WorkerPaymentsScreen(
             existingPayment = uiState.selectedPayment,
             onDismiss = { viewModel.closeAddPayment() },
             onDelete = { p -> viewModel.deletePayment(p) },
-            onSave = { amt, date, type, desc, isPaid, payerObjId ->
+            onSave = { amt, date, type, desc, isPaid, payerObjId, paymentDate ->
                 if (isPaid) {
-                    viewModel.savePayment(amt, date, type, desc, payerObjId)
+                    viewModel.savePayment(amt, date, type, desc, payerObjId, paymentDate)
                 } else if (uiState.selectedPayment != null) {
                     viewModel.deletePayment(uiState.selectedPayment!!)
                 }
@@ -174,8 +174,15 @@ fun PaymentItemCard(
                         color = TextSecondary
                     )
                 }
+
+                val dateLabel = if (!payment.paymentDate.isNullOrBlank() && payment.paymentDate != payment.date) {
+                    "Berilgan sana: ${DateUtil.formatToDisplay(payment.paymentDate)} (${DateUtil.formatToDisplay(payment.date)} uchun)"
+                } else {
+                    DateUtil.formatToDisplay(payment.date)
+                }
+
                 Text(
-                    text = DateUtil.formatToDisplay(payment.date),
+                    text = dateLabel,
                     style = MaterialTheme.typography.labelMedium,
                     color = TextMuted
                 )

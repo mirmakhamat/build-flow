@@ -92,6 +92,7 @@ data class WorkerPayment(
     val payerObjectId: String? = null,
     val amount: Double,
     val date: String,
+    val paymentDate: String? = null,
     val type: PaymentType = PaymentType.SALARY,
     val description: String? = null,
     val createdAt: Long = System.currentTimeMillis()

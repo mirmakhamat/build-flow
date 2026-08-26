@@ -751,8 +751,14 @@ fun ReportDrillDownBottomSheet(
                                 val isOtherPayer = wp.payerObjectId != null && wp.payerObjectId != wp.objectId
                                 val payerObjName = allObjsMap[wp.payerObjectId]?.name ?: "Boshqa obyekt"
 
+                                val dateText = if (!wp.paymentDate.isNullOrBlank() && wp.paymentDate != wp.date) {
+                                    "To'langan: ${DateUtil.formatToDisplay(wp.paymentDate)} (${DateUtil.formatToDisplay(wp.date)} kungi ish uchun)"
+                                } else {
+                                    "${DateUtil.formatToDisplay(wp.date)} kungi to'lov"
+                                }
+
                                 DrillDownCard(
-                                    date = wp.date,
+                                    date = dateText,
                                     mainText = workerName,
                                     subText = if (!wp.description.isNullOrBlank()) "${wp.type.name}: ${wp.description}" else wp.type.name,
                                     amount = wp.amount,
@@ -776,8 +782,14 @@ fun ReportDrillDownBottomSheet(
                                 val workerName = worker?.name ?: "Noma'lum ishchi"
                                 val workerObjName = allObjsMap[wp.objectId]?.name ?: "Boshqa obyekt"
 
+                                val dateText = if (!wp.paymentDate.isNullOrBlank() && wp.paymentDate != wp.date) {
+                                    "To'langan: ${DateUtil.formatToDisplay(wp.paymentDate)} (${DateUtil.formatToDisplay(wp.date)} uchun)"
+                                } else {
+                                    "${DateUtil.formatToDisplay(wp.date)} kungi to'lov"
+                                }
+
                                 DrillDownCard(
-                                    date = wp.date,
+                                    date = dateText,
                                     mainText = workerName,
                                     subText = "$workerObjName ishchisi | ${wp.type.name}: ${wp.description ?: ""}",
                                     amount = wp.amount,
@@ -801,8 +813,14 @@ fun ReportDrillDownBottomSheet(
                                 val workerName = worker?.name ?: "Noma'lum ishchi"
                                 val payerObjName = allObjsMap[wp.payerObjectId]?.name ?: "Boshqa obyekt"
 
+                                val dateText = if (!wp.paymentDate.isNullOrBlank() && wp.paymentDate != wp.date) {
+                                    "To'langan: ${DateUtil.formatToDisplay(wp.paymentDate)} (${DateUtil.formatToDisplay(wp.date)} uchun)"
+                                } else {
+                                    "${DateUtil.formatToDisplay(wp.date)} kungi to'lov"
+                                }
+
                                 DrillDownCard(
-                                    date = wp.date,
+                                    date = dateText,
                                     mainText = workerName,
                                     subText = "$payerObjName kassasidan to'langan",
                                     amount = wp.amount,

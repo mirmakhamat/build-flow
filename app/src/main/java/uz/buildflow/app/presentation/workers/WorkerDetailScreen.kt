@@ -306,8 +306,8 @@ fun WorkerDetailScreen(
             currentObjectId = worker?.objectId ?: "",
             onDismiss = { viewModel.closePaymentSheet() },
             onDelete = { p -> viewModel.deletePayment(p) },
-            onSave = { amount, date, type, desc, isPaid, payerObjId ->
-                viewModel.savePayment(amount, date, type, desc, isPaid, payerObjId)
+            onSave = { amount, date, type, desc, isPaid, payerObjId, paymentDate ->
+                viewModel.savePayment(amount, date, type, desc, isPaid, payerObjId, paymentDate)
             }
         )
     }
@@ -931,6 +931,13 @@ fun DayDetailBottomSheet(
                                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                                 color = EmeraldSuccess
                                             )
+                                            if (!payment.paymentDate.isNullOrBlank() && payment.paymentDate != payment.date) {
+                                                Text(
+                                                    text = "Berilgan sana: ${DateUtil.formatToDisplay(payment.paymentDate)}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = DeepBluePrimary
+                                                )
+                                            }
                                             if (!payment.description.isNullOrBlank()) {
                                                 Text(text = payment.description, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                                             }
