@@ -26,6 +26,7 @@ import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.MoneyTransaction
 import uz.buildflow.app.presentation.common.AmountInputField
+import uz.buildflow.app.presentation.common.DatePickerField
 
 enum class IncomeSourceType {
     CLIENT,
@@ -184,13 +185,10 @@ fun AddIncomeSheet(
                 label = "Tushgan summa (so'm)"
             )
 
-            OutlinedTextField(
+            DatePickerField(
                 value = date,
-                onValueChange = { date = it },
-                label = { Text("Sana (YYYY-MM-DD)") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
+                onDateSelected = { date = it },
+                label = "Tushum sanasi"
             )
 
             OutlinedTextField(

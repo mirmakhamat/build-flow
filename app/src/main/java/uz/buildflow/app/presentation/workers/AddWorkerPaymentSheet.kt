@@ -20,6 +20,7 @@ import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.PaymentType
 import uz.buildflow.app.domain.model.WorkerPayment
 import uz.buildflow.app.presentation.common.AmountInputField
+import uz.buildflow.app.presentation.common.DatePickerField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,13 +109,10 @@ fun AddWorkerPaymentSheet(
                 label = "To'lov summasi (so'm)"
             )
 
-            OutlinedTextField(
+            DatePickerField(
                 value = actualPaymentDate,
-                onValueChange = { actualPaymentDate = it },
-                label = { Text("Pul berilgan sana (ixtiyoriy, YYYY-MM-DD)") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
+                onDateSelected = { actualPaymentDate = it },
+                label = "Pul berilgan sana"
             )
 
             // KROSS-OBYEKT: Qaysi obyekt kassasidan to'lanadi?

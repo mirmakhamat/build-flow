@@ -130,14 +130,17 @@ class WorkerDetailViewModel(
         paymentAmount: Double,
         isPaid: Boolean,
         note: String?,
-        payerObjectId: String? = null
+        payerObjectId: String? = null,
+        paymentDate: String? = null,
+        targetDate: String? = null
     ) {
         viewModelScope.launch {
-            val date = _uiState.value.selectedDate ?: return@launch
+            val date = targetDate ?: _uiState.value.selectedDate ?: return@launch
             val worker = _uiState.value.worker ?: return@launch
-            val existing = _uiState.value.selectedDayRecord
+            val existingDays = workerDayRepository.getDaysByWorker(workerId).firstOrNull() ?: emptyList()
+            val existing = existingDays.find { it.date == date }
 
-            val paymentStatus = if (isPaid) PaymentStatus.PAID else PaymentStatus.UNPAID
+            val paymentStatus = if (isPaid && paymentAmount > 0) PaymentStatus.PAID else PaymentStatus.UNPAID
 
             if (existing != null) {
                 val updated = existing.copy(
@@ -169,6 +172,7 @@ class WorkerDetailViewModel(
                         existingDaySalaryPayment.copy(
                             amount = paymentAmount,
                             payerObjectId = payerObjectId,
+                            paymentDate = paymentDate,
                             description = "${DateUtil.formatToDisplay(date)} kunlik ish haqi to'landi"
                         )
                     )
@@ -179,6 +183,7 @@ class WorkerDetailViewModel(
                         payerObjectId = payerObjectId,
                         amount = paymentAmount,
                         date = date,
+                        paymentDate = paymentDate,
                         type = PaymentType.SALARY,
                         description = "${DateUtil.formatToDisplay(date)} kunlik ish haqi to'landi"
                     )
@@ -192,7 +197,7 @@ class WorkerDetailViewModel(
         }
     }
 
-    fun payForDaySalary(record: WorkerDay, payerObjectId: String? = null) {
+    fun payForDaySalary(record: WorkerDay, payerObjectId: String? = null, paymentDate: String? = null) {
         viewModelScope.launch {
             val worker = _uiState.value.worker ?: return@launch
             val updated = record.copy(paymentStatus = PaymentStatus.PAID, updatedAt = System.currentTimeMillis())
@@ -206,6 +211,7 @@ class WorkerDetailViewModel(
                     existingDaySalaryPayment.copy(
                         amount = record.paymentAmount,
                         payerObjectId = payerObjectId,
+                        paymentDate = paymentDate,
                         description = "${DateUtil.formatToDisplay(record.date)} kunlik ish haqi to'landi"
                     )
                 )
@@ -216,6 +222,7 @@ class WorkerDetailViewModel(
                     payerObjectId = payerObjectId,
                     amount = record.paymentAmount,
                     date = record.date,
+                    paymentDate = paymentDate,
                     type = PaymentType.SALARY,
                     description = "${DateUtil.formatToDisplay(record.date)} kunlik ish haqi to'landi"
                 )

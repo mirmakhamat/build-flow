@@ -30,6 +30,7 @@ import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.*
 import uz.buildflow.app.presentation.common.AmountInputField
+import uz.buildflow.app.presentation.common.DatePickerField
 import uz.buildflow.app.presentation.common.MetricCard
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -266,8 +267,8 @@ fun WorkerDetailScreen(
             defaultRate = worker?.defaultRate ?: 300000.0,
             onDismiss = { viewModel.closeDayEditSheet() },
             onDeleteDay = { rec -> viewModel.deleteDayRecord(rec) },
-            onSaveDay = { status, payment, isPaid, note, payerObjId ->
-                viewModel.saveDayRecord(status, payment, isPaid, note, payerObjId)
+            onSaveDay = { status, payment, isPaid, note, payerObjId, paymentDate ->
+                viewModel.saveDayRecord(status, payment, isPaid, note, payerObjId, paymentDate)
             },
             onPayDaySalary = { rec, payerObjId -> viewModel.payForDaySalary(rec, payerObjId) },
             onMarkDayUnpaid = { rec -> viewModel.markDayAsUnpaid(rec) },
@@ -517,7 +518,7 @@ fun DayDetailBottomSheet(
     defaultRate: Double,
     onDismiss: () -> Unit,
     onDeleteDay: ((WorkerDay) -> Unit)?,
-    onSaveDay: (status: AttendanceStatus, paymentAmount: Double, isPaid: Boolean, note: String?, payerObjectId: String?) -> Unit,
+    onSaveDay: (status: AttendanceStatus, paymentAmount: Double, isPaid: Boolean, note: String?, payerObjectId: String?, paymentDate: String?) -> Unit,
     onPayDaySalary: (WorkerDay, payerObjectId: String?) -> Unit,
     onMarkDayUnpaid: (WorkerDay) -> Unit,
     onPayBonus: (GeneralBonus, payerObjectId: String?) -> Unit,
@@ -536,6 +537,7 @@ fun DayDetailBottomSheet(
                 ?: defaultRate.toLong().toString()
         )
     }
+    var actualPaymentDate by remember { mutableStateOf(DateUtil.today()) }
     var note by remember(existingRecord) { mutableStateOf(existingRecord?.note ?: "") }
     var selectedPayerObjectId by remember { mutableStateOf<String?>(null) }
     var isObjectMenuExpanded by remember { mutableStateOf(false) }
@@ -693,6 +695,12 @@ fun DayDetailBottomSheet(
                             label = "Kunlik stavka"
                         )
 
+                        DatePickerField(
+                            value = actualPaymentDate,
+                            onDateSelected = { actualPaymentDate = it },
+                            label = "Pul berilgan sana (agar bugun berilsa)"
+                        )
+
                         // KROSS-OBYEKT KASSA SELEKTORI
                         if (availableObjects.isNotEmpty()) {
                             val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
@@ -759,7 +767,7 @@ fun DayDetailBottomSheet(
                                     if (!isSaving) {
                                         isSaving = true
                                         val amt = paymentStr.toDoubleOrNull() ?: 0.0
-                                        onSaveDay(status, amt, true, note.trim().ifBlank { null }, selectedPayerObjectId)
+                                        onSaveDay(status, amt, true, note.trim().ifBlank { null }, selectedPayerObjectId, actualPaymentDate.trim().ifBlank { null })
                                         onDismiss()
                                     }
                                 },
@@ -776,7 +784,7 @@ fun DayDetailBottomSheet(
                                     if (!isSaving) {
                                         isSaving = true
                                         val amt = paymentStr.toDoubleOrNull() ?: 0.0
-                                        onSaveDay(status, amt, false, note.trim().ifBlank { null }, selectedPayerObjectId)
+                                        onSaveDay(status, amt, false, note.trim().ifBlank { null }, selectedPayerObjectId, null)
                                         onDismiss()
                                     }
                                 },
