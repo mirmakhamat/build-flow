@@ -106,8 +106,13 @@ data class ObjectFinancialSummary(
     val totalDailyBonuses: Double,
     val totalGeneralBonuses: Double,
     val totalPaidToWorkers: Double,
+    val totalCashPaidToWorkers: Double = totalPaidToWorkers,
+    val totalPaidForOtherObjectsWorkers: Double = 0.0,
+    val totalPaidByOtherObjectsForThisWorkers: Double = 0.0,
     val totalOtherExpenses: Double,
     val totalPaidOtherExpenses: Double = totalOtherExpenses,
+    val totalExpensesPaidForOtherObjects: Double = 0.0,
+    val totalExpensesPaidByOtherObjects: Double = 0.0,
     val categoryBreakdowns: List<CategoryExpenseBreakdown> = emptyList(),
     val totalWorkerCount: Int,
     val totalWorkDaysCount: Int
@@ -127,8 +132,11 @@ data class ObjectFinancialSummary(
     val remainingReceivable: Double
         get() = (totalPrice - totalReceivedIncome).coerceAtLeast(0.0)
 
+    val totalCashOutflow: Double
+        get() = totalCashPaidToWorkers + totalPaidOtherExpenses
+
     val cashBalance: Double
-        get() = totalReceivedIncome - (totalPaidToWorkers + totalPaidOtherExpenses)
+        get() = totalReceivedIncome - totalCashOutflow
 
     val estimatedProfit: Double
         get() = totalPrice - totalAccruedExpenses

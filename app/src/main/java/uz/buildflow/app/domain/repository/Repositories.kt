@@ -55,6 +55,8 @@ interface ExpenseRepository {
     fun getExpensesByObjectAndDate(objectId: String, date: String): Flow<List<Expense>>
     fun getTotalExpenseByObject(objectId: String): Flow<Double>
     fun getTotalCashExpensePaidByObject(objectId: String): Flow<Double>
+    fun getTotalExpensesPaidForOtherObjects(objectId: String): Flow<Double>
+    fun getTotalExpensesPaidByOtherObjects(objectId: String): Flow<Double>
     fun getExpenseSumByCategory(objectId: String, category: String): Flow<Double>
     fun getCategoryBreakdowns(objectId: String): Flow<List<CategoryExpenseBreakdown>>
     suspend fun insertExpense(expense: Expense)
@@ -72,7 +74,10 @@ interface TransactionRepository {
     // Worker Payments
     fun getPaymentsByWorker(workerId: String): Flow<List<WorkerPayment>>
     fun getTotalPaidByWorker(workerId: String): Flow<Double>
+    fun getTotalPaidForWorkersOfObject(objectId: String): Flow<Double>
     fun getTotalPaidByObject(objectId: String): Flow<Double>
+    fun getTotalPaidForOtherObjectsWorkers(objectId: String): Flow<Double>
+    fun getTotalPaidByOtherObjectsForThisWorkers(objectId: String): Flow<Double>
     suspend fun insertWorkerPayment(payment: WorkerPayment)
     suspend fun updateWorkerPayment(payment: WorkerPayment)
     suspend fun deleteWorkerPayment(payment: WorkerPayment)

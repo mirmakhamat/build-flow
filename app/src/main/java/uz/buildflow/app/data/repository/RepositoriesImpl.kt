@@ -128,6 +128,12 @@ class ExpenseRepositoryImpl(private val expenseDao: ExpenseDao) : ExpenseReposit
     override fun getTotalCashExpensePaidByObject(objectId: String): Flow<Double> =
         expenseDao.getTotalCashExpensePaidByObject(objectId)
 
+    override fun getTotalExpensesPaidForOtherObjects(objectId: String): Flow<Double> =
+        expenseDao.getTotalExpensesPaidForOtherObjects(objectId)
+
+    override fun getTotalExpensesPaidByOtherObjects(objectId: String): Flow<Double> =
+        expenseDao.getTotalExpensesPaidByOtherObjects(objectId)
+
     override fun getExpenseSumByCategory(objectId: String, category: String): Flow<Double> =
         expenseDao.getExpenseSumByCategory(objectId, category)
 
@@ -167,8 +173,17 @@ class TransactionRepositoryImpl(
     override fun getTotalPaidByWorker(workerId: String): Flow<Double> =
         workerPaymentDao.getTotalPaidByWorker(workerId)
 
+    override fun getTotalPaidForWorkersOfObject(objectId: String): Flow<Double> =
+        workerPaymentDao.getTotalPaidForWorkersOfObject(objectId)
+
     override fun getTotalPaidByObject(objectId: String): Flow<Double> =
         workerPaymentDao.getTotalPaidByObject(objectId)
+
+    override fun getTotalPaidForOtherObjectsWorkers(objectId: String): Flow<Double> =
+        workerPaymentDao.getTotalPaidForOtherObjectsWorkers(objectId)
+
+    override fun getTotalPaidByOtherObjectsForThisWorkers(objectId: String): Flow<Double> =
+        workerPaymentDao.getTotalPaidByOtherObjectsForThisWorkers(objectId)
 
     override suspend fun insertWorkerPayment(payment: WorkerPayment) =
         workerPaymentDao.insertPayment(payment.toEntity())

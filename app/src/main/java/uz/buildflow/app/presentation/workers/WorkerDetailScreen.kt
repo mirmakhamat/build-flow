@@ -218,15 +218,17 @@ fun WorkerDetailScreen(
             existingRecord = uiState.selectedDayRecord,
             paymentsOnDay = uiState.selectedDatePayments,
             bonusesOnDay = uiState.selectedDateBonuses,
+            availableObjects = uiState.availableObjects,
+            currentObjectId = worker?.objectId ?: "",
             defaultRate = worker?.defaultRate ?: 300000.0,
             onDismiss = { viewModel.closeDayEditSheet() },
             onDeleteDay = { rec -> viewModel.deleteDayRecord(rec) },
-            onSaveDay = { status, payment, isPaid, note ->
-                viewModel.saveDayRecord(status, payment, isPaid, note)
+            onSaveDay = { status, payment, isPaid, note, payerObjId ->
+                viewModel.saveDayRecord(status, payment, isPaid, note, payerObjId)
             },
-            onPayDaySalary = { rec -> viewModel.payForDaySalary(rec) },
+            onPayDaySalary = { rec, payerObjId -> viewModel.payForDaySalary(rec, payerObjId) },
             onMarkDayUnpaid = { rec -> viewModel.markDayAsUnpaid(rec) },
-            onPayBonus = { b -> viewModel.payForBonus(b) },
+            onPayBonus = { b, payerObjId -> viewModel.payForBonus(b, payerObjId) },
             onMarkBonusUnpaid = { b -> viewModel.markBonusAsUnpaid(b) },
             onAddPaymentClick = { viewModel.openAddPayment(uiState.selectedDate) },
             onEditPaymentClick = { p -> viewModel.openEditPayment(p) },
@@ -242,10 +244,12 @@ fun WorkerDetailScreen(
         AddBonusBottomSheet(
             existingBonus = uiState.selectedBonus,
             defaultDate = uiState.selectedDate ?: DateUtil.today(),
+            availableObjects = uiState.availableObjects,
+            currentObjectId = worker?.objectId ?: "",
             onDismiss = { viewModel.closeBonusSheet() },
             onDelete = { b -> viewModel.deleteGeneralBonus(b) },
-            onSave = { amount, date, reason, isPaid ->
-                viewModel.saveGeneralBonus(amount, date, reason, isPaid)
+            onSave = { amount, date, reason, isPaid, payerObjId ->
+                viewModel.saveGeneralBonus(amount, date, reason, isPaid, payerObjId)
             }
         )
     }
@@ -474,13 +478,15 @@ fun DayDetailBottomSheet(
     existingRecord: WorkerDay?,
     paymentsOnDay: List<WorkerPayment>,
     bonusesOnDay: List<GeneralBonus>,
+    availableObjects: List<BuildObject> = emptyList(),
+    currentObjectId: String = "",
     defaultRate: Double,
     onDismiss: () -> Unit,
     onDeleteDay: ((WorkerDay) -> Unit)?,
-    onSaveDay: (status: AttendanceStatus, paymentAmount: Double, isPaid: Boolean, note: String?) -> Unit,
-    onPayDaySalary: (WorkerDay) -> Unit,
+    onSaveDay: (status: AttendanceStatus, paymentAmount: Double, isPaid: Boolean, note: String?, payerObjectId: String?) -> Unit,
+    onPayDaySalary: (WorkerDay, payerObjectId: String?) -> Unit,
     onMarkDayUnpaid: (WorkerDay) -> Unit,
-    onPayBonus: (GeneralBonus) -> Unit,
+    onPayBonus: (GeneralBonus, payerObjectId: String?) -> Unit,
     onMarkBonusUnpaid: (GeneralBonus) -> Unit,
     onAddPaymentClick: () -> Unit,
     onEditPaymentClick: (WorkerPayment) -> Unit,
@@ -497,6 +503,8 @@ fun DayDetailBottomSheet(
         )
     }
     var note by remember(existingRecord) { mutableStateOf(existingRecord?.note ?: "") }
+    var selectedPayerObjectId by remember { mutableStateOf<String?>(null) }
+    var isObjectMenuExpanded by remember { mutableStateOf(false) }
 
     val isEditMode = existingRecord != null
 
@@ -649,6 +657,52 @@ fun DayDetailBottomSheet(
                         label = "Kunlik stavka"
                     )
 
+                    // KROSS-OBYEKT KASSA SELEKTORI
+                    if (availableObjects.isNotEmpty()) {
+                        val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
+                        val currentObj = availableObjects.find { it.id == currentObjectId }
+                        val displayName = selectedObj?.name ?: "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"
+
+                        ExposedDropdownMenuBox(
+                            expanded = isObjectMenuExpanded,
+                            onExpandedChange = { isObjectMenuExpanded = !isObjectMenuExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = displayName,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("To'lov manbasi (Obyekt kassasi)") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isObjectMenuExpanded) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = isObjectMenuExpanded,
+                                onDismissRequest = { isObjectMenuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)") },
+                                    onClick = {
+                                        selectedPayerObjectId = null
+                                        isObjectMenuExpanded = false
+                                    }
+                                )
+                                availableObjects.filter { it.id != currentObjectId }.forEach { objItem ->
+                                    DropdownMenuItem(
+                                        text = { Text("${objItem.name} kassasidan") },
+                                        onClick = {
+                                            selectedPayerObjectId = objItem.id
+                                            isObjectMenuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     OutlinedTextField(
                         value = note,
                         onValueChange = { note = it },
@@ -670,7 +724,7 @@ fun DayDetailBottomSheet(
                                     if (!isSaving) {
                                         isSaving = true
                                         val amt = paymentStr.toDoubleOrNull() ?: 0.0
-                                        onSaveDay(status, amt, true, note.trim().ifBlank { null })
+                                        onSaveDay(status, amt, true, note.trim().ifBlank { null }, selectedPayerObjectId)
                                         onDismiss()
                                     }
                                 },
@@ -687,7 +741,7 @@ fun DayDetailBottomSheet(
                                     if (!isSaving) {
                                         isSaving = true
                                         val amt = paymentStr.toDoubleOrNull() ?: 0.0
-                                        onSaveDay(status, amt, false, note.trim().ifBlank { null })
+                                        onSaveDay(status, amt, false, note.trim().ifBlank { null }, selectedPayerObjectId)
                                         onDismiss()
                                     }
                                 },
@@ -705,7 +759,7 @@ fun DayDetailBottomSheet(
                                 if (!isSaving) {
                                     isSaving = true
                                     val amt = paymentStr.toDoubleOrNull() ?: 0.0
-                                    onSaveDay(status, amt, isDayPaid, note.trim().ifBlank { null })
+                                    onSaveDay(status, amt, isDayPaid, note.trim().ifBlank { null }, selectedPayerObjectId)
                                     onDismiss()
                                 }
                             },
@@ -722,7 +776,7 @@ fun DayDetailBottomSheet(
                                 onClick = {
                                     if (!isSaving) {
                                         isSaving = true
-                                        onPayDaySalary(existingRecord)
+                                        onPayDaySalary(existingRecord, selectedPayerObjectId)
                                         onDismiss()
                                     }
                                 },
@@ -918,7 +972,7 @@ fun DayDetailBottomSheet(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         // Yagona Iconli Holat Tugmasi (To'lash / Qarz qilish)
                                         if (!isPaid && bonusItem.rawGeneralBonus != null) {
-                                            IconButton(onClick = { onPayBonus(bonusItem.rawGeneralBonus) }) {
+                                            IconButton(onClick = { onPayBonus(bonusItem.rawGeneralBonus, null) }) {
                                                 Icon(
                                                     imageVector = Icons.Default.CheckCircle,
                                                     contentDescription = "To'lash",
@@ -976,9 +1030,11 @@ fun DayDetailBottomSheet(
 fun AddBonusBottomSheet(
     existingBonus: GeneralBonus? = null,
     defaultDate: String = DateUtil.today(),
+    availableObjects: List<BuildObject> = emptyList(),
+    currentObjectId: String = "",
     onDismiss: () -> Unit,
     onDelete: ((GeneralBonus) -> Unit)? = null,
-    onSave: (amount: Double, date: String, reason: String?, isPaid: Boolean) -> Unit
+    onSave: (amount: Double, date: String, reason: String?, isPaid: Boolean, payerObjectId: String?) -> Unit
 ) {
     val targetDate = remember { existingBonus?.date ?: defaultDate }
     var amountStr by remember(existingBonus) {
@@ -987,6 +1043,8 @@ fun AddBonusBottomSheet(
     var reason by remember(existingBonus) {
         mutableStateOf(existingBonus?.reason ?: "")
     }
+    var selectedPayerObjectId by remember { mutableStateOf<String?>(null) }
+    var isObjectMenuExpanded by remember { mutableStateOf(false) }
 
     val isEditMode = existingBonus != null && existingBonus.amount > 0
 
@@ -1027,6 +1085,52 @@ fun AddBonusBottomSheet(
                 label = "Bonus summasi (so'm)"
             )
 
+            // KROSS-OBYEKT KASSA SELEKTORI
+            if (availableObjects.isNotEmpty()) {
+                val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
+                val currentObj = availableObjects.find { it.id == currentObjectId }
+                val displayName = selectedObj?.name ?: "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"
+
+                ExposedDropdownMenuBox(
+                    expanded = isObjectMenuExpanded,
+                    onExpandedChange = { isObjectMenuExpanded = !isObjectMenuExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = displayName,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("To'lov manbasi (Obyekt kassasi)") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isObjectMenuExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = isObjectMenuExpanded,
+                        onDismissRequest = { isObjectMenuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)") },
+                            onClick = {
+                                selectedPayerObjectId = null
+                                isObjectMenuExpanded = false
+                            }
+                        )
+                        availableObjects.filter { it.id != currentObjectId }.forEach { objItem ->
+                            DropdownMenuItem(
+                                text = { Text("${objItem.name} kassasidan") },
+                                onClick = {
+                                    selectedPayerObjectId = objItem.id
+                                    isObjectMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = reason,
                 onValueChange = { reason = it },
@@ -1047,7 +1151,7 @@ fun AddBonusBottomSheet(
                         if (!isSaving) {
                             isSaving = true
                             val amt = amountStr.toDoubleOrNull() ?: 0.0
-                            onSave(amt, targetDate, reason.trim().ifBlank { null }, true)
+                            onSave(amt, targetDate, reason.trim().ifBlank { null }, true, selectedPayerObjectId)
                             onDismiss()
                         }
                     },
@@ -1064,7 +1168,7 @@ fun AddBonusBottomSheet(
                         if (!isSaving) {
                             isSaving = true
                             val amt = amountStr.toDoubleOrNull() ?: 0.0
-                            onSave(amt, targetDate, reason.trim().ifBlank { null }, false)
+                            onSave(amt, targetDate, reason.trim().ifBlank { null }, false, selectedPayerObjectId)
                             onDismiss()
                         }
                     },
