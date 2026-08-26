@@ -113,6 +113,7 @@ data class ObjectFinancialSummary(
     val totalPaidForOtherObjectsWorkers: Double = 0.0,
     val totalPaidByOtherObjectsForThisWorkers: Double = 0.0,
     val totalOtherExpenses: Double,
+    val totalTransfersOut: Double = 0.0,
     val totalPaidOtherExpenses: Double = totalOtherExpenses,
     val totalExpensesPaidForOtherObjects: Double = 0.0,
     val totalExpensesPaidByOtherObjects: Double = 0.0,

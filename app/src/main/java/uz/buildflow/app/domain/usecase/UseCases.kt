@@ -37,12 +37,15 @@ class GetObjectFinancialSummaryUseCase(
 
         val flow3 = combine(
             transactionRepository.getTotalPaidByOtherObjectsForThisWorkers(objectId),
-            expenseRepository.getTotalExpenseByObject(objectId),
+            expenseRepository.getTotalBuildingExpenseByObject(objectId),
+            expenseRepository.getTotalTransfersOutByObject(objectId),
             expenseRepository.getTotalCashExpensePaidByObject(objectId),
-            expenseRepository.getTotalExpensesPaidForOtherObjects(objectId),
-            expenseRepository.getTotalExpensesPaidByOtherObjects(objectId)
-        ) { paidByOtherForWorkers, otherExpenses, paidOtherExpenses, expensesForOther, expensesByOther ->
-            SummaryPart3(paidByOtherForWorkers, otherExpenses, paidOtherExpenses, expensesForOther, expensesByOther)
+            combine(
+                expenseRepository.getTotalExpensesPaidForOtherObjects(objectId),
+                expenseRepository.getTotalExpensesPaidByOtherObjects(objectId)
+            ) { forOther, byOther -> forOther to byOther }
+        ) { paidByOtherForWorkers, buildingExpenses, transfersOut, paidOtherExpenses, (expensesForOther, expensesByOther) ->
+            SummaryPart3(paidByOtherForWorkers, buildingExpenses, transfersOut, paidOtherExpenses, expensesForOther, expensesByOther)
         }
 
         val flow4 = combine(
@@ -70,11 +73,12 @@ class GetObjectFinancialSummaryUseCase(
                 totalCashPaidToWorkers = p2.cashPaidWorkers,
                 totalPaidForOtherObjectsWorkers = p2.paidForOtherWorkers,
                 totalPaidByOtherObjectsForThisWorkers = p3.paidByOtherForWorkers,
-                totalOtherExpenses = p3.otherExpenses,
+                totalOtherExpenses = p3.buildingExpenses,
+                totalTransfersOut = p3.transfersOut,
                 totalPaidOtherExpenses = p3.paidOtherExpenses,
                 totalExpensesPaidForOtherObjects = p3.expensesForOther,
                 totalExpensesPaidByOtherObjects = p3.expensesByOther,
-                categoryBreakdowns = p4.categories,
+                categoryBreakdowns = p4.categories.filter { it.categoryName != "Kassalararo o'tkazma" },
                 totalWorkerCount = p4.workerCount,
                 totalWorkDaysCount = p4.workDaysCount
             )
@@ -99,7 +103,8 @@ class GetObjectFinancialSummaryUseCase(
 
     private data class SummaryPart3(
         val paidByOtherForWorkers: Double,
-        val otherExpenses: Double,
+        val buildingExpenses: Double,
+        val transfersOut: Double,
         val paidOtherExpenses: Double,
         val expensesForOther: Double,
         val expensesByOther: Double

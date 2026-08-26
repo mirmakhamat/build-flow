@@ -20,6 +20,8 @@ data class IncomesUiState(
     val currentObject: BuildObject? = null,
     val availableObjects: List<BuildObject> = emptyList(),
     val totalIncome: Double = 0.0,
+    val totalClientIncome: Double = 0.0,
+    val totalTransfersIn: Double = 0.0,
     val selectedObjectId: String? = null,
     val selectedTransaction: MoneyTransaction? = null,
     val isAddSheetOpen: Boolean = false,
@@ -30,7 +32,7 @@ data class IncomesUiState(
         get() = currentObject?.totalPrice ?: 0.0
 
     val remainingReceivable: Double
-        get() = (totalPrice - totalIncome).coerceAtLeast(0.0)
+        get() = (totalPrice - totalClientIncome).coerceAtLeast(0.0)
 }
 
 class IncomesViewModel(
@@ -62,16 +64,30 @@ class IncomesViewModel(
     private fun loadIncomes(objectId: String?) {
         if (objectId == null) return
         loadJob?.cancel()
+
+        val flow1 = combine(
+            transactionRepository.getTransactionsByObject(objectId),
+            transactionRepository.getTotalIncomeByObject(objectId),
+            transactionRepository.getTotalClientIncomeByObject(objectId),
+            transactionRepository.getTotalTransfersInByObject(objectId)
+        ) { list, total, clientIncome, transfersIn ->
+            IncomePart1(list, total, clientIncome, transfersIn)
+        }
+
+        val flow2 = combine(
+            objectRepository.getObjectById(objectId),
+            objectRepository.getAllObjects()
+        ) { obj, allObjs ->
+            obj to allObjs
+        }
+
         loadJob = viewModelScope.launch {
-            combine(
-                transactionRepository.getTransactionsByObject(objectId),
-                transactionRepository.getTotalIncomeByObject(objectId),
-                objectRepository.getObjectById(objectId),
-                objectRepository.getAllObjects()
-            ) { list, total, obj, allObjs ->
+            combine(flow1, flow2) { p1, (obj, allObjs) ->
                 IncomesUiState(
-                    transactions = list,
-                    totalIncome = total,
+                    transactions = p1.list,
+                    totalIncome = p1.total,
+                    totalClientIncome = p1.clientIncome,
+                    totalTransfersIn = p1.transfersIn,
                     currentObject = obj,
                     availableObjects = allObjs,
                     selectedObjectId = objectId,
@@ -85,6 +101,13 @@ class IncomesViewModel(
             }
         }
     }
+
+    private data class IncomePart1(
+        val list: List<MoneyTransaction>,
+        val total: Double,
+        val clientIncome: Double,
+        val transfersIn: Double
+    )
 
     fun openAddIncome() {
         _uiState.update { it.copy(selectedTransaction = null, isAddSheetOpen = true) }

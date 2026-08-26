@@ -93,15 +93,25 @@ fun IncomesScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(text = "Obyekt umumiy narxi:", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                            Text(text = CurrencyFormatter.formatAmount(uiState.totalPrice), style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold))
+                            Text(text = if (uiState.totalPrice > 0) CurrencyFormatter.formatAmount(uiState.totalPrice) else "Kiritilmagan", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold))
                         }
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(text = "Jami olingan avans/pul:", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                            Text(text = CurrencyFormatter.formatAmount(uiState.totalIncome), style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold), color = EmeraldSuccess)
+                            Text(text = "Mijoz to'lagan summa (Avans):", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                            Text(text = CurrencyFormatter.formatAmount(uiState.totalClientIncome), style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold), color = EmeraldSuccess)
+                        }
+
+                        if (uiState.totalTransfersIn > 0) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(text = "  ↳ Boshqa obyekt kassasidan o'tkazma:", style = MaterialTheme.typography.bodySmall, color = Color(0xFF8B5CF6))
+                                Text(text = CurrencyFormatter.formatAmount(uiState.totalTransfersIn), style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = Color(0xFF8B5CF6))
+                            }
                         }
 
                         HorizontalDivider(color = BorderColor)
@@ -110,9 +120,9 @@ fun IncomesScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(text = "Qolib ketgan summa (Qoldiq):", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = TextPrimary)
+                            Text(text = "Mijozdan qolgan summa (Qoldiq):", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = TextPrimary)
                             Text(
-                                text = CurrencyFormatter.formatAmount(uiState.remainingReceivable),
+                                text = if (uiState.totalPrice > 0) CurrencyFormatter.formatAmount(uiState.remainingReceivable) else "—",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = if (uiState.remainingReceivable > 0) AmberWarning else EmeraldSuccess
                             )

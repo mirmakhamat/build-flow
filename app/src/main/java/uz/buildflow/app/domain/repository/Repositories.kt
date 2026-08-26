@@ -56,6 +56,8 @@ interface ExpenseRepository {
     fun getExpensesByObject(objectId: String): Flow<List<Expense>>
     fun getExpensesByObjectAndDate(objectId: String, date: String): Flow<List<Expense>>
     fun getTotalExpenseByObject(objectId: String): Flow<Double>
+    fun getTotalBuildingExpenseByObject(objectId: String): Flow<Double>
+    fun getTotalTransfersOutByObject(objectId: String): Flow<Double>
     fun getTotalCashExpensePaidByObject(objectId: String): Flow<Double>
     fun getTotalExpensesPaidForOtherObjects(objectId: String): Flow<Double>
     fun getTotalExpensesPaidByOtherObjects(objectId: String): Flow<Double>

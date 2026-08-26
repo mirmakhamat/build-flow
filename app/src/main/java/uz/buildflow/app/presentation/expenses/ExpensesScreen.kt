@@ -14,8 +14,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.core.util.DateUtil
@@ -27,7 +29,7 @@ import uz.buildflow.app.presentation.common.MetricCard
 @Composable
 fun ExpensesScreen(
     viewModel: ExpensesViewModel,
-    onBackToObjects: (() -> Unit)? = null
+    onBackToObjects: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -36,40 +38,34 @@ fun ExpensesScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Obyekt Xarajatlari",
+                        text = "Xarajatlar",
                         style = MaterialTheme.typography.titleLarge
                     )
                 },
                 navigationIcon = {
-                    if (onBackToObjects != null) {
-                        IconButton(onClick = onBackToObjects) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Barcha Obyektlar"
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.refresh() }) {
+                    IconButton(onClick = onBackToObjects) {
                         Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Yangilash (Refresh)",
-                            tint = DeepBluePrimary
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Ortga"
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceLight)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = SurfaceLight
+                )
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { viewModel.openAddExpense() },
                 containerColor = DeepBluePrimary,
-                contentColor = SurfaceLight,
+                contentColor = Color.White,
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Xarajat qo'shish")
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Xarajat qo'shish"
+                )
             }
         }
     ) { paddingValues ->
@@ -80,13 +76,63 @@ fun ExpensesScreen(
                 .background(BackgroundLight)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                MetricCard(
-                    title = "Ushbu Obyekt Xarajatlari Jami",
-                    amount = CurrencyFormatter.formatAmount(uiState.totalExpense),
-                    accentColor = RoseExpense,
-                    icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                    modifier = Modifier.padding(16.dp)
-                )
+                // XULOSA KARTOCHKASI
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceLight),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "Obyekt xarajatlari:", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                            Text(
+                                text = CurrencyFormatter.formatAmount(uiState.totalBuildingExpense),
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                color = RoseExpense
+                            )
+                        }
+
+                        if (uiState.totalTransfersOut > 0) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = "  ↳ Boshqa obyekt kassasiga o'tkazma:", style = MaterialTheme.typography.bodySmall, color = Color(0xFF8B5CF6))
+                                Text(
+                                    text = CurrencyFormatter.formatAmount(uiState.totalTransfersOut),
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = Color(0xFF8B5CF6)
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(color = BorderColor)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "Kassadan chiqqan jami chiqim:", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = TextPrimary)
+                            Text(
+                                text = CurrencyFormatter.formatAmount(uiState.totalExpense),
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = RoseExpense
+                            )
+                        }
+                    }
+                }
 
                 if (uiState.expenses.isEmpty() && !uiState.isLoading) {
                     EmptyStateView(
@@ -134,12 +180,19 @@ fun ExpenseItemCard(
     expense: Expense,
     onClick: () -> Unit
 ) {
+    val isTransfer = expense.category == "Kassalararo o'tkazma"
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceLight)
+        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
+        border = if (isTransfer) CardDefaults.outlinedCardBorder().copy(
+            brush = androidx.compose.ui.graphics.SolidColor(Color(0xFF8B5CF6).copy(alpha = 0.5f))
+        ) else CardDefaults.outlinedCardBorder().copy(
+            brush = androidx.compose.ui.graphics.SolidColor(BorderColor)
+        )
     ) {
         Row(
             modifier = Modifier
@@ -149,6 +202,21 @@ fun ExpenseItemCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
+                if (isTransfer) {
+                    Surface(
+                        color = Color(0xFFEDE9FE),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    ) {
+                        Text(
+                            text = "Kassalararo o'tkazma",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF8B5CF6),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
                 Text(
                     text = expense.category,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
@@ -173,7 +241,7 @@ fun ExpenseItemCard(
                     if (expense.payerObjectId != null && expense.payerObjectId != expense.objectId) {
                         Text(
                             text = "Boshqa obyekt pulidan",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = DeepBluePrimary
                         )
                     }
@@ -184,7 +252,7 @@ fun ExpenseItemCard(
                 Text(
                     text = CurrencyFormatter.formatAmount(expense.amount),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = RoseExpense
+                    color = if (isTransfer) Color(0xFF8B5CF6) else RoseExpense
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Icon(

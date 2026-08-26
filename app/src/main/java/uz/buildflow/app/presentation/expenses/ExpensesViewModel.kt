@@ -19,6 +19,8 @@ data class ExpensesUiState(
     val categories: List<ExpenseCategoryItem> = emptyList(),
     val availableObjects: List<BuildObject> = emptyList(),
     val totalExpense: Double = 0.0,
+    val totalBuildingExpense: Double = 0.0,
+    val totalTransfersOut: Double = 0.0,
     val selectedObjectId: String? = null,
     val selectedExpense: Expense? = null,
     val isAddSheetOpen: Boolean = false,
@@ -70,11 +72,15 @@ class ExpensesViewModel(
             loadJob = viewModelScope.launch {
                 combine(
                     expenseRepository.getExpensesByObject(objectId),
-                    expenseRepository.getTotalExpenseByObject(objectId)
-                ) { list, total ->
+                    expenseRepository.getTotalExpenseByObject(objectId),
+                    expenseRepository.getTotalBuildingExpenseByObject(objectId),
+                    expenseRepository.getTotalTransfersOutByObject(objectId)
+                ) { list, total, buildingExp, transfersOut ->
                     _uiState.value.copy(
                         expenses = list,
                         totalExpense = total,
+                        totalBuildingExpense = buildingExp,
+                        totalTransfersOut = transfersOut,
                         selectedObjectId = objectId,
                         isLoading = false,
                         isRefreshing = false
