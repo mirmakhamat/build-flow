@@ -200,11 +200,19 @@ fun ObjectCard(
 
             HorizontalDivider(color = BorderColor)
 
-            Text(
-                text = CurrencyFormatter.formatAmount(obj.totalPrice),
-                style = MaterialTheme.typography.headlineMedium.copy(color = DeepBluePrimary),
-                fontWeight = FontWeight.Bold
-            )
+            if (obj.totalPrice > 0) {
+                Text(
+                    text = CurrencyFormatter.formatAmount(obj.totalPrice),
+                    style = MaterialTheme.typography.headlineMedium.copy(color = DeepBluePrimary),
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Text(
+                    text = "Summa kiritilmagan",
+                    style = MaterialTheme.typography.titleMedium.copy(color = TextMuted),
+                    fontWeight = FontWeight.Medium
+                )
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

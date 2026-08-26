@@ -51,10 +51,17 @@ fun ObjectDetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.openEditSheet() }) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Obyektni Tahrirlash",
+                            tint = DeepBluePrimary
+                        )
+                    }
                     IconButton(onClick = { viewModel.refresh() }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
-                            contentDescription = "Yangilash (Refresh)",
+                            contentDescription = "Yangilash",
                             tint = DeepBluePrimary
                         )
                     }
@@ -92,11 +99,27 @@ fun ObjectDetailScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextMuted
                         )
-                        Text(
-                            text = CurrencyFormatter.formatAmount(obj.totalPrice),
-                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
-                            color = SurfaceLight
-                        )
+                        if (obj.totalPrice > 0) {
+                            Text(
+                                text = CurrencyFormatter.formatAmount(obj.totalPrice),
+                                style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                                color = SurfaceLight
+                            )
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Summa kiritilmagan",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = AmberLight
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "(Ixtiyoriy)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted
+                                )
+                            }
+                        }
 
                         HorizontalDivider(color = DeepBluePrimary)
 
@@ -113,13 +136,21 @@ fun ObjectDetailScreen(
                                 )
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text(text = "Kutilmoqda", style = MaterialTheme.typography.labelMedium, color = TextMuted)
+                                Text(text = "Mijozdan kutilmoqda", style = MaterialTheme.typography.labelMedium, color = TextMuted)
                                 Text(
-                                    text = CurrencyFormatter.formatAmount(summary?.remainingReceivable ?: 0.0),
+                                    text = if (obj.totalPrice > 0) CurrencyFormatter.formatAmount(summary?.remainingReceivable ?: 0.0) else "— (summa yo'q)",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = AmberWarning
                                 )
                             }
+                        }
+
+                        if (obj.totalPrice <= 0) {
+                            Text(
+                                text = "💡 Eslatma: Obyekt umumiy narxi kiritilmagan. Kutilayotgan foydani hisoblash uchun yuqoridagi qalamcha tugmasi orqali narx kiritishingiz mumkin.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AmberLight.copy(alpha = 0.8f)
+                            )
                         }
                     }
                 }
@@ -158,84 +189,162 @@ fun ObjectDetailScreen(
                         modifier = Modifier.weight(1f)
                     )
                     MetricCard(
-                        title = "Ishlangan kunlar",
+                        title = "Bajarilgan Ish Kunlari",
                         amount = "${summary?.totalWorkDaysCount ?: 0} kun",
-                        accentColor = DeepBluePrimary,
-                        icon = Icons.Default.CalendarToday,
+                        accentColor = AmberWarning,
+                        icon = Icons.Default.EventAvailable,
                         modifier = Modifier.weight(1f)
                     )
                 }
 
-                // 4. Tezkor Harakatlar Tugmalari
+                // 4. Foyda va Rentabellik
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceLight)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .background(
+                                        color = if ((summary?.estimatedProfit ?: 0.0) >= 0) EmeraldLight else RoseLight,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                                    contentDescription = null,
+                                    tint = if ((summary?.estimatedProfit ?: 0.0) >= 0) EmeraldSuccess else RoseExpense
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Taxminiy Sof Foyda",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary
+                                )
+                                Text(
+                                    text = if (obj.totalPrice > 0) CurrencyFormatter.formatAmount(summary?.estimatedProfit ?: 0.0) else "Kiritilmagan",
+                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = if (obj.totalPrice > 0) {
+                                        if ((summary?.estimatedProfit ?: 0.0) >= 0) EmeraldSuccess else RoseExpense
+                                    } else TextMuted
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 5. Tezkor Havolalar (Navigatsiya)
                 Text(
-                    text = "Tezkor Amallar",
+                    text = "Bo'limlar",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = TextPrimary
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = onNavigateToDailyAttendance,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = DeepBluePrimary, contentColor = Color.White)
-                    ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.FactCheck, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Davomat", color = Color.White)
-                    }
-
-                    Button(
-                        onClick = onNavigateToIncomes,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess, contentColor = Color.White)
-                    ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Kirimlar", color = Color.White)
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onNavigateToWorkers,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepBluePrimary)
-                    ) {
-                        Icon(imageVector = Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp), tint = DeepBluePrimary)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Ishchilar", color = DeepBluePrimary)
-                    }
-
-                    OutlinedButton(
-                        onClick = onNavigateToExpenses,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepBluePrimary)
-                    ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, modifier = Modifier.size(18.dp), tint = DeepBluePrimary)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Xarajatlar", color = DeepBluePrimary)
-                    }
-                }
-
-                // 5. Xarajatlar va Ishchilar Taqsimoti (Breakdown)
                 Card(
+                    onClick = onNavigateToDailyAttendance,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = SurfaceLight),
                     border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderColor))
                 ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(DeepBlueLight.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.FactCheck,
+                                    contentDescription = null,
+                                    tint = DeepBluePrimary
+                                )
+                            }
+                            Column {
+                                Text(text = "Kunlik Davomat", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                                Text(text = "Barcha ishchilarni bir joyda belgilash", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            }
+                        }
+                        Icon(imageVector = Icons.Default.ChevronRight, contentDescription = null, tint = TextMuted)
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = onNavigateToWorkers,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = DeepBluePrimary)
+                    ) {
+                        Icon(imageVector = Icons.Default.Group, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Ishchilar")
+                    }
+
+                    Button(
+                        onClick = onNavigateToExpenses,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RoseExpense)
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Xarajatlar")
+                    }
+                }
+
+                Button(
+                    onClick = onNavigateToIncomes,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess)
+                ) {
+                    Icon(imageVector = Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Tushumlar (Daromad)")
+                }
+
+                // 6. Xarajatlar Taqsimoti
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceLight)
+                ) {
                     Column(
-                        modifier = Modifier.padding(18.dp),
+                        modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
@@ -271,6 +380,16 @@ fun ObjectDetailScreen(
                 }
             }
         }
+    }
+
+    if (uiState.isEditSheetOpen && obj != null) {
+        AddEditObjectSheet(
+            existingObject = obj,
+            onDismiss = { viewModel.closeEditSheet() },
+            onSave = { name, desc, price, startDate, status ->
+                viewModel.updateObject(name, desc, price, startDate, status)
+            }
+        )
     }
 }
 

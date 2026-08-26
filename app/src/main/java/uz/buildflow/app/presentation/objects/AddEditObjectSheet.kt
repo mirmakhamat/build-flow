@@ -17,6 +17,7 @@ import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.ObjectStatus
 import uz.buildflow.app.presentation.common.AmountInputField
+import uz.buildflow.app.presentation.common.DatePickerField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,11 +28,17 @@ fun AddEditObjectSheet(
 ) {
     var name by remember { mutableStateOf(existingObject?.name ?: "") }
     var description by remember { mutableStateOf(existingObject?.description ?: "") }
-    var totalPriceStr by remember { mutableStateOf(existingObject?.totalPrice?.toLong()?.toString() ?: "") }
+    var totalPriceStr by remember {
+        mutableStateOf(
+            if (existingObject != null && existingObject.totalPrice > 0)
+                existingObject.totalPrice.toLong().toString()
+            else ""
+        )
+    }
     var startDate by remember { mutableStateOf(existingObject?.startDate ?: DateUtil.today()) }
     var status by remember { mutableStateOf(existingObject?.status ?: ObjectStatus.ACTIVE) }
 
-    val isValid = name.isNotBlank() && totalPriceStr.isNotBlank()
+    val isValid = name.isNotBlank()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -61,25 +68,32 @@ fun AddEditObjectSheet(
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Obyekt nomi (masalan: Chilonzor 12-uy)") },
+                label = { Text("Obyekt nomi * (masalan: Chilonzor 12-uy)") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 singleLine = true
             )
 
-            AmountInputField(
-                value = totalPriceStr,
-                onValueChange = { totalPriceStr = it },
-                label = "Obyektning umumiy narxi (so'm)"
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                AmountInputField(
+                    value = totalPriceStr,
+                    onValueChange = { totalPriceStr = it },
+                    label = "Obyekt umumiy shartnoma summasi",
+                    isOptional = true
+                )
+                if (totalPriceStr.isBlank()) {
+                    Text(
+                        text = "💡 Eslatma: Summa kiritilmasa, kutilayotgan foyda va mijoz qarzdorligi hisoblanmaydi.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = DeepBluePrimary
+                    )
+                }
+            }
 
-            OutlinedTextField(
+            DatePickerField(
                 value = startDate,
-                onValueChange = { startDate = it },
-                label = { Text("Boshlanish sanasi (YYYY-MM-DD)") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
+                onDateSelected = { startDate = it },
+                label = "Boshlanish sanasi"
             )
 
             OutlinedTextField(

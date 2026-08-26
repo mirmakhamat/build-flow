@@ -8,12 +8,14 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.ObjectFinancialSummary
+import uz.buildflow.app.domain.model.ObjectStatus
 import uz.buildflow.app.domain.repository.ObjectRepository
 import uz.buildflow.app.domain.usecase.GetObjectFinancialSummaryUseCase
 
 data class ObjectDetailUiState(
     val obj: BuildObject? = null,
     val summary: ObjectFinancialSummary? = null,
+    val isEditSheetOpen: Boolean = false,
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false
 )
@@ -48,12 +50,43 @@ class ObjectDetailViewModel(
                 ObjectDetailUiState(
                     obj = obj,
                     summary = summary,
+                    isEditSheetOpen = _uiState.value.isEditSheetOpen,
                     isLoading = false,
                     isRefreshing = false
                 )
             }.collect { state ->
                 _uiState.value = state
             }
+        }
+    }
+
+    fun openEditSheet() {
+        _uiState.update { it.copy(isEditSheetOpen = true) }
+    }
+
+    fun closeEditSheet() {
+        _uiState.update { it.copy(isEditSheetOpen = false) }
+    }
+
+    fun updateObject(
+        name: String,
+        description: String?,
+        totalPrice: Double,
+        startDate: String,
+        status: ObjectStatus
+    ) {
+        viewModelScope.launch {
+            val current = _uiState.value.obj ?: return@launch
+            val updated = current.copy(
+                name = name,
+                description = description,
+                totalPrice = totalPrice,
+                startDate = startDate,
+                status = status,
+                updatedAt = System.currentTimeMillis()
+            )
+            objectRepository.updateObject(updated)
+            closeEditSheet()
         }
     }
 
