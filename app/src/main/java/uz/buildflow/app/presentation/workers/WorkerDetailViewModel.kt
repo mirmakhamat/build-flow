@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.*
 import uz.buildflow.app.domain.repository.TransactionRepository
 import uz.buildflow.app.domain.repository.WorkerDayRepository
@@ -151,7 +152,7 @@ class WorkerDetailViewModel(
                         amount = paymentAmount,
                         date = date,
                         type = PaymentType.SALARY,
-                        description = "${date} kunlik ish haqi to'landi"
+                        description = "${DateUtil.formatToDisplay(date)} kunlik ish haqi to'landi"
                     )
                     transactionRepository.insertWorkerPayment(payment)
                 }
@@ -173,7 +174,12 @@ class WorkerDetailViewModel(
             val existingDaySalaryPayment = existingPayments.find { it.date == record.date && it.type == PaymentType.SALARY }
 
             if (existingDaySalaryPayment != null) {
-                transactionRepository.updateWorkerPayment(existingDaySalaryPayment.copy(amount = record.paymentAmount))
+                transactionRepository.updateWorkerPayment(
+                    existingDaySalaryPayment.copy(
+                        amount = record.paymentAmount,
+                        description = "${DateUtil.formatToDisplay(record.date)} kunlik ish haqi to'landi"
+                    )
+                )
             } else {
                 val payment = WorkerPayment(
                     workerId = workerId,
@@ -181,7 +187,7 @@ class WorkerDetailViewModel(
                     amount = record.paymentAmount,
                     date = record.date,
                     type = PaymentType.SALARY,
-                    description = "${record.date} kunlik ish haqi to'landi"
+                    description = "${DateUtil.formatToDisplay(record.date)} kunlik ish haqi to'landi"
                 )
                 transactionRepository.insertWorkerPayment(payment)
             }
@@ -255,8 +261,9 @@ class WorkerDetailViewModel(
             val existingBonusPayment = existingPayments.find { it.date == date && it.type == PaymentType.BONUS_PAYOUT }
 
             if (isPaid && amount > 0) {
+                val desc = reason?.ifBlank { null } ?: "${DateUtil.formatToDisplay(date)} bonusi to'landi"
                 if (existingBonusPayment != null) {
-                    transactionRepository.updateWorkerPayment(existingBonusPayment.copy(amount = amount, description = reason ?: "Bonus to'landi"))
+                    transactionRepository.updateWorkerPayment(existingBonusPayment.copy(amount = amount, description = desc))
                 } else {
                     val payment = WorkerPayment(
                         workerId = workerId,
@@ -264,7 +271,7 @@ class WorkerDetailViewModel(
                         amount = amount,
                         date = date,
                         type = PaymentType.BONUS_PAYOUT,
-                        description = "${date} ${reason ?: "Bonus"} to'landi"
+                        description = desc
                     )
                     transactionRepository.insertWorkerPayment(payment)
                 }
@@ -285,13 +292,14 @@ class WorkerDetailViewModel(
             if (existingBonusPayment != null) {
                 transactionRepository.updateWorkerPayment(existingBonusPayment.copy(amount = bonus.amount))
             } else {
+                val desc = bonus.reason?.ifBlank { null } ?: "${DateUtil.formatToDisplay(bonus.date)} bonusi to'landi"
                 val payment = WorkerPayment(
                     workerId = workerId,
                     objectId = worker.objectId,
                     amount = bonus.amount,
                     date = bonus.date,
                     type = PaymentType.BONUS_PAYOUT,
-                    description = "${bonus.date} ${bonus.reason ?: "Bonus"} to'landi"
+                    description = desc
                 )
                 transactionRepository.insertWorkerPayment(payment)
             }

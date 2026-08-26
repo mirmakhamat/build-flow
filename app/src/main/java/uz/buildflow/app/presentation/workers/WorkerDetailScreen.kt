@@ -655,6 +655,8 @@ fun DayDetailBottomSheet(
                         shape = RoundedCornerShape(12.dp)
                     )
 
+                    var isSaving by remember { mutableStateOf(false) }
+
                     // TUGMALAR LOGIKASI
                     if (!isEditMode) {
                         Row(
@@ -663,9 +665,14 @@ fun DayDetailBottomSheet(
                         ) {
                             Button(
                                 onClick = {
-                                    val amt = paymentStr.toDoubleOrNull() ?: 0.0
-                                    onSaveDay(status, amt, true, note.trim().ifBlank { null })
+                                    if (!isSaving) {
+                                        isSaving = true
+                                        val amt = paymentStr.toDoubleOrNull() ?: 0.0
+                                        onSaveDay(status, amt, true, note.trim().ifBlank { null })
+                                        onDismiss()
+                                    }
                                 },
+                                enabled = !isSaving,
                                 modifier = Modifier.weight(1f).height(46.dp),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess, contentColor = Color.White)
@@ -675,9 +682,14 @@ fun DayDetailBottomSheet(
 
                             OutlinedButton(
                                 onClick = {
-                                    val amt = paymentStr.toDoubleOrNull() ?: 0.0
-                                    onSaveDay(status, amt, false, note.trim().ifBlank { null })
+                                    if (!isSaving) {
+                                        isSaving = true
+                                        val amt = paymentStr.toDoubleOrNull() ?: 0.0
+                                        onSaveDay(status, amt, false, note.trim().ifBlank { null })
+                                        onDismiss()
+                                    }
                                 },
+                                enabled = !isSaving,
                                 modifier = Modifier.weight(1f).height(46.dp),
                                 shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepBluePrimary)
@@ -688,9 +700,14 @@ fun DayDetailBottomSheet(
                     } else {
                         Button(
                             onClick = {
-                                val amt = paymentStr.toDoubleOrNull() ?: 0.0
-                                onSaveDay(status, amt, isDayPaid, note.trim().ifBlank { null })
+                                if (!isSaving) {
+                                    isSaving = true
+                                    val amt = paymentStr.toDoubleOrNull() ?: 0.0
+                                    onSaveDay(status, amt, isDayPaid, note.trim().ifBlank { null })
+                                    onDismiss()
+                                }
                             },
+                            enabled = !isSaving,
                             modifier = Modifier.fillMaxWidth().height(46.dp),
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = DeepBluePrimary, contentColor = Color.White)
@@ -700,7 +717,14 @@ fun DayDetailBottomSheet(
 
                         if (isDayUnpaid && existingRecord != null) {
                             Button(
-                                onClick = { onPayDaySalary(existingRecord) },
+                                onClick = {
+                                    if (!isSaving) {
+                                        isSaving = true
+                                        onPayDaySalary(existingRecord)
+                                        onDismiss()
+                                    }
+                                },
+                                enabled = !isSaving,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(44.dp),
@@ -713,7 +737,14 @@ fun DayDetailBottomSheet(
                             }
                         } else if (isDayPaid && existingRecord != null) {
                             OutlinedButton(
-                                onClick = { onMarkDayUnpaid(existingRecord) },
+                                onClick = {
+                                    if (!isSaving) {
+                                        isSaving = true
+                                        onMarkDayUnpaid(existingRecord)
+                                        onDismiss()
+                                    }
+                                },
+                                enabled = !isSaving,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(44.dp),
@@ -1002,6 +1033,8 @@ fun AddBonusBottomSheet(
                 shape = RoundedCornerShape(12.dp)
             )
 
+            var isSaving by remember { mutableStateOf(false) }
+
             // ASOSIY TUGMALAR
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1009,10 +1042,14 @@ fun AddBonusBottomSheet(
             ) {
                 Button(
                     onClick = {
-                        val amt = amountStr.toDoubleOrNull() ?: 0.0
-                        onSave(amt, targetDate, reason.trim().ifBlank { null }, true)
+                        if (!isSaving) {
+                            isSaving = true
+                            val amt = amountStr.toDoubleOrNull() ?: 0.0
+                            onSave(amt, targetDate, reason.trim().ifBlank { null }, true)
+                            onDismiss()
+                        }
                     },
-                    enabled = amountStr.isNotBlank(),
+                    enabled = !isSaving && amountStr.isNotBlank(),
                     modifier = Modifier.weight(1f).height(46.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess, contentColor = Color.White)
@@ -1022,10 +1059,14 @@ fun AddBonusBottomSheet(
 
                 OutlinedButton(
                     onClick = {
-                        val amt = amountStr.toDoubleOrNull() ?: 0.0
-                        onSave(amt, targetDate, reason.trim().ifBlank { null }, false)
+                        if (!isSaving) {
+                            isSaving = true
+                            val amt = amountStr.toDoubleOrNull() ?: 0.0
+                            onSave(amt, targetDate, reason.trim().ifBlank { null }, false)
+                            onDismiss()
+                        }
                     },
-                    enabled = amountStr.isNotBlank(),
+                    enabled = !isSaving && amountStr.isNotBlank(),
                     modifier = Modifier.weight(1f).height(46.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepBluePrimary)
