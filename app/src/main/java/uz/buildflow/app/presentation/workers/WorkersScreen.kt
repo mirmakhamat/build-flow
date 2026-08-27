@@ -422,7 +422,6 @@ fun ImportWorkerBottomSheet(
     onDismiss: () -> Unit,
     onImportWorkers: (List<Worker>) -> Unit
 ) {
-    val isPrivacyMode = LocalPrivacyMode.current
     var searchQuery by remember { mutableStateOf("") }
     var selectedWorkerIds by remember { mutableStateOf(setOf<String>()) }
 
@@ -572,7 +571,7 @@ fun ImportWorkerBottomSheet(
                                             color = TextPrimary
                                         )
                                         Text(
-                                            text = "${item.worker.position ?: "Ishchi"} · ${CurrencyFormatter.formatAmountShort(item.worker.defaultRate, isPrivacyMode)} / kun",
+                                            text = "${item.worker.position ?: "Ishchi"} · ${CurrencyFormatter.formatAmountShort(item.worker.defaultRate)} / kun",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = TextSecondary
                                         )
