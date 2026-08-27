@@ -18,20 +18,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import uz.buildflow.app.core.preferences.LocalPrivacyMode
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.Expense
 import uz.buildflow.app.presentation.common.EmptyStateView
 import uz.buildflow.app.presentation.common.MetricCard
+import uz.buildflow.app.presentation.common.PrivacyToggleButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpensesScreen(
     viewModel: ExpensesViewModel,
-    onBackToObjects: () -> Unit
+    onBackToObjects: () -> Unit,
+    onTogglePrivacy: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isPrivacyMode = LocalPrivacyMode.current
 
     Scaffold(
         topBar = {
@@ -49,6 +53,9 @@ fun ExpensesScreen(
                             contentDescription = "Ortga"
                         )
                     }
+                },
+                actions = {
+                    PrivacyToggleButton(onToggle = onTogglePrivacy)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = SurfaceLight
@@ -96,7 +103,7 @@ fun ExpensesScreen(
                         ) {
                             Text(text = "Obyekt xarajatlari:", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                             Text(
-                                text = CurrencyFormatter.formatAmount(uiState.totalBuildingExpense),
+                                text = CurrencyFormatter.formatAmount(uiState.totalBuildingExpense, isPrivacyMode),
                                 style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                                 color = RoseExpense
                             )
@@ -110,7 +117,7 @@ fun ExpensesScreen(
                             ) {
                                 Text(text = "  ↳ Boshqa obyekt kassasiga o'tkazma:", style = MaterialTheme.typography.bodySmall, color = Color(0xFF8B5CF6))
                                 Text(
-                                    text = CurrencyFormatter.formatAmount(uiState.totalTransfersOut),
+                                    text = CurrencyFormatter.formatAmount(uiState.totalTransfersOut, isPrivacyMode),
                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                     color = Color(0xFF8B5CF6)
                                 )
@@ -126,7 +133,7 @@ fun ExpensesScreen(
                         ) {
                             Text(text = "Kassadan chiqqan jami chiqim:", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = TextPrimary)
                             Text(
-                                text = CurrencyFormatter.formatAmount(uiState.totalExpense),
+                                text = CurrencyFormatter.formatAmount(uiState.totalExpense, isPrivacyMode),
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = RoseExpense
                             )
@@ -266,9 +273,10 @@ fun ExpenseItemCard(
                 }
             }
 
+            val isPrivacyMode = LocalPrivacyMode.current
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = CurrencyFormatter.formatAmount(expense.amount),
+                    text = CurrencyFormatter.formatAmount(expense.amount, isPrivacyMode),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = if (isTransfer) Color(0xFF8B5CF6) else RoseExpense
                 )

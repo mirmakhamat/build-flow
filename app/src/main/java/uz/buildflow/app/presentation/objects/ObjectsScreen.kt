@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import uz.buildflow.app.core.preferences.LocalPrivacyMode
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.core.util.DatabaseBackupHelper
@@ -27,6 +28,7 @@ import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.ObjectStatus
 import uz.buildflow.app.presentation.common.EmptyStateView
+import uz.buildflow.app.presentation.common.PrivacyToggleButton
 import uz.buildflow.app.presentation.common.StatusBadge
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,10 +36,12 @@ import uz.buildflow.app.presentation.common.StatusBadge
 fun ObjectsScreen(
     viewModel: ObjectsViewModel,
     onObjectClick: (String) -> Unit,
-    onExportDatabase: () -> Unit
+    onExportDatabase: () -> Unit,
+    onTogglePrivacy: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val isPrivacyMode = LocalPrivacyMode.current
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -65,6 +69,7 @@ fun ObjectsScreen(
                     }
                 },
                 actions = {
+                    PrivacyToggleButton(onToggle = onTogglePrivacy)
                     IconButton(onClick = { filePickerLauncher.launch("*/*") }) {
                         Icon(
                             imageVector = Icons.Default.FileUpload,
@@ -200,9 +205,11 @@ fun ObjectCard(
 
             HorizontalDivider(color = BorderColor)
 
+            val isPrivacyMode = LocalPrivacyMode.current
+
             if (obj.totalPrice > 0) {
                 Text(
-                    text = CurrencyFormatter.formatAmount(obj.totalPrice),
+                    text = CurrencyFormatter.formatAmount(obj.totalPrice, isPrivacyMode),
                     style = MaterialTheme.typography.headlineMedium.copy(color = DeepBluePrimary),
                     fontWeight = FontWeight.Bold
                 )
@@ -221,7 +228,7 @@ fun ObjectCard(
                 Column {
                     Text(text = "Tushgan pul", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
                     Text(
-                        text = CurrencyFormatter.formatAmountShort(summary?.totalReceivedIncome ?: 0.0) + " so'm",
+                        text = if (isPrivacyMode) CurrencyFormatter.MASKED_AMOUNT_SHORT else CurrencyFormatter.formatAmountShort(summary?.totalReceivedIncome ?: 0.0) + " so'm",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = EmeraldSuccess
@@ -230,7 +237,7 @@ fun ObjectCard(
                 Column {
                     Text(text = "Jami Xarajat", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
                     Text(
-                        text = CurrencyFormatter.formatAmountShort(summary?.totalExpenses ?: 0.0) + " so'm",
+                        text = if (isPrivacyMode) CurrencyFormatter.MASKED_AMOUNT_SHORT else CurrencyFormatter.formatAmountShort(summary?.totalExpenses ?: 0.0) + " so'm",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = RoseExpense
@@ -239,7 +246,7 @@ fun ObjectCard(
                 Column {
                     Text(text = "Qo'ldagi pul", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
                     Text(
-                        text = CurrencyFormatter.formatAmountShort(summary?.cashBalance ?: 0.0) + " so'm",
+                        text = if (isPrivacyMode) CurrencyFormatter.MASKED_AMOUNT_SHORT else CurrencyFormatter.formatAmountShort(summary?.cashBalance ?: 0.0) + " so'm",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = if ((summary?.cashBalance ?: 0.0) >= 0) DeepBlueLight else RoseExpense

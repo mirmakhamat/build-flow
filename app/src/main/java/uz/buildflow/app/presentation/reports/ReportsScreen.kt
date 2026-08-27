@@ -22,19 +22,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import uz.buildflow.app.core.preferences.LocalPrivacyMode
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.*
+import uz.buildflow.app.presentation.common.PrivacyToggleButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsScreen(
     viewModel: ReportsViewModel,
-    onBackToObjects: () -> Unit
+    onBackToObjects: () -> Unit,
+    onTogglePrivacy: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val summary = uiState.summary
+    val isPrivacyMode = LocalPrivacyMode.current
 
     Scaffold(
         topBar = {
@@ -49,6 +53,9 @@ fun ReportsScreen(
                     IconButton(onClick = onBackToObjects) {
                         Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Obyektlar")
                     }
+                },
+                actions = {
+                    PrivacyToggleButton(onToggle = onTogglePrivacy)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceLight)
             )
@@ -354,8 +361,9 @@ fun InteractiveBreakdownRow(
                 )
             }
         }
+        val isPrivacyMode = LocalPrivacyMode.current
         Text(
-            text = if (isCustomText) customText else CurrencyFormatter.formatAmount(amount),
+            text = if (isCustomText) customText else CurrencyFormatter.formatAmount(amount, isPrivacyMode),
             style = if (isBold) MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold) else MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
             color = customColor
         )
@@ -470,6 +478,8 @@ fun FinancialHealthCard(
 
             HorizontalDivider(color = BorderColor.copy(alpha = 0.5f))
 
+            val isPrivacyMode = LocalPrivacyMode.current
+
             // 2. MIJOZ AVANSLARI VA ISHCHILAR QARZI TAHLILI
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -485,12 +495,12 @@ fun FinancialHealthCard(
                     Column(modifier = Modifier.padding(10.dp)) {
                         Text(text = "Mijoz To'lovi", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                         Text(
-                            text = CurrencyFormatter.formatAmountShort(summary.totalClientIncome),
+                            text = CurrencyFormatter.formatAmountShort(summary.totalClientIncome, isPrivacyMode),
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                             color = EmeraldSuccess
                         )
                         Text(
-                            text = "Qoldiq: " + CurrencyFormatter.formatAmountShort(summary.remainingReceivable),
+                            text = "Qoldiq: " + CurrencyFormatter.formatAmountShort(summary.remainingReceivable, isPrivacyMode),
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted
                         )
@@ -507,12 +517,12 @@ fun FinancialHealthCard(
                     Column(modifier = Modifier.padding(10.dp)) {
                         Text(text = "Ishchilar Qarzi", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                         Text(
-                            text = CurrencyFormatter.formatAmountShort(summary.totalWorkerDebt),
+                            text = CurrencyFormatter.formatAmountShort(summary.totalWorkerDebt, isPrivacyMode),
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                             color = if (summary.totalWorkerDebt > 0) RoseExpense else EmeraldSuccess
                         )
                         Text(
-                            text = "To'langan: " + CurrencyFormatter.formatAmountShort(summary.totalPaidToWorkers),
+                            text = "To'langan: " + CurrencyFormatter.formatAmountShort(summary.totalPaidToWorkers, isPrivacyMode),
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted
                         )
@@ -529,7 +539,7 @@ fun FinancialHealthCard(
                     Column(modifier = Modifier.padding(10.dp)) {
                         Text(text = "Kassa Qoldig'i", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                         Text(
-                            text = CurrencyFormatter.formatAmountShort(summary.cashBalance),
+                            text = CurrencyFormatter.formatAmountShort(summary.cashBalance, isPrivacyMode),
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                             color = if (summary.cashBalance >= 0) EmeraldSuccess else RoseExpense
                         )
@@ -550,6 +560,7 @@ fun ExpenseDistributionChartCard(
     summary: ObjectFinancialSummary,
     onCategoryClick: (String) -> Unit
 ) {
+    val isPrivacyMode = LocalPrivacyMode.current
     val totalExpenseSum = remember(summary.categoryBreakdowns) {
         summary.categoryBreakdowns.sumOf { it.totalAmount }.coerceAtLeast(1.0)
     }
@@ -599,7 +610,7 @@ fun ExpenseDistributionChartCard(
                 }
 
                 Text(
-                    text = "Jami: " + CurrencyFormatter.formatAmountShort(totalExpenseSum),
+                    text = "Jami: " + CurrencyFormatter.formatAmountShort(totalExpenseSum, isPrivacyMode),
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                     color = TextPrimary
                 )
@@ -1015,8 +1026,9 @@ fun DrillDownCard(
                 )
             }
 
+            val isPrivacyMode = LocalPrivacyMode.current
             Text(
-                text = CurrencyFormatter.formatAmount(amount),
+                text = CurrencyFormatter.formatAmount(amount, isPrivacyMode),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = amountColor
             )

@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import uz.buildflow.app.core.preferences.LocalPrivacyMode
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.core.util.DateUtil
@@ -24,16 +25,19 @@ import uz.buildflow.app.domain.model.PaymentType
 import uz.buildflow.app.domain.model.WorkerPayment
 import uz.buildflow.app.presentation.common.EmptyStateView
 import uz.buildflow.app.presentation.common.MetricCard
+import uz.buildflow.app.presentation.common.PrivacyToggleButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkerPaymentsScreen(
     viewModel: WorkerPaymentsViewModel,
     workerName: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onTogglePrivacy: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val stats = uiState.stats
+    val isPrivacyMode = LocalPrivacyMode.current
 
     Scaffold(
         topBar = {
@@ -50,6 +54,7 @@ fun WorkerPaymentsScreen(
                     }
                 },
                 actions = {
+                    PrivacyToggleButton(onToggle = onTogglePrivacy)
                     IconButton(onClick = { viewModel.refresh() }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -188,9 +193,10 @@ fun PaymentItemCard(
                 )
             }
 
+            val isPrivacyMode = LocalPrivacyMode.current
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = CurrencyFormatter.formatAmount(payment.amount),
+                    text = CurrencyFormatter.formatAmount(payment.amount, isPrivacyMode),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = DeepBluePrimary
                 )

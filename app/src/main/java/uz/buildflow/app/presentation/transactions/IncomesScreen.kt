@@ -16,20 +16,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import uz.buildflow.app.core.preferences.LocalPrivacyMode
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.MoneyTransaction
 import uz.buildflow.app.presentation.common.EmptyStateView
 import uz.buildflow.app.presentation.common.MetricCard
+import uz.buildflow.app.presentation.common.PrivacyToggleButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IncomesScreen(
     viewModel: IncomesViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onTogglePrivacy: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isPrivacyMode = LocalPrivacyMode.current
 
     Scaffold(
         topBar = {
@@ -46,6 +50,7 @@ fun IncomesScreen(
                     }
                 },
                 actions = {
+                    PrivacyToggleButton(onToggle = onTogglePrivacy)
                     IconButton(onClick = { viewModel.refresh() }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -93,7 +98,7 @@ fun IncomesScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(text = "Obyekt umumiy narxi:", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                            Text(text = if (uiState.totalPrice > 0) CurrencyFormatter.formatAmount(uiState.totalPrice) else "Kiritilmagan", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold))
+                            Text(text = if (uiState.totalPrice > 0) CurrencyFormatter.formatAmount(uiState.totalPrice, isPrivacyMode) else "Kiritilmagan", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold))
                         }
 
                         Row(
@@ -101,7 +106,7 @@ fun IncomesScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(text = "Mijoz to'lagan summa (Avans):", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                            Text(text = CurrencyFormatter.formatAmount(uiState.totalClientIncome), style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold), color = EmeraldSuccess)
+                            Text(text = CurrencyFormatter.formatAmount(uiState.totalClientIncome, isPrivacyMode), style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold), color = EmeraldSuccess)
                         }
 
                         if (uiState.totalTransfersIn > 0) {
@@ -110,7 +115,7 @@ fun IncomesScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(text = "  ↳ Boshqa obyekt kassasidan o'tkazma:", style = MaterialTheme.typography.bodySmall, color = Color(0xFF8B5CF6))
-                                Text(text = CurrencyFormatter.formatAmount(uiState.totalTransfersIn), style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = Color(0xFF8B5CF6))
+                                Text(text = CurrencyFormatter.formatAmount(uiState.totalTransfersIn, isPrivacyMode), style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = Color(0xFF8B5CF6))
                             }
                         }
 
@@ -122,7 +127,7 @@ fun IncomesScreen(
                         ) {
                             Text(text = "Mijozdan qolgan summa (Qoldiq):", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = TextPrimary)
                             Text(
-                                text = if (uiState.totalPrice > 0) CurrencyFormatter.formatAmount(uiState.remainingReceivable) else "—",
+                                text = if (uiState.totalPrice > 0) CurrencyFormatter.formatAmount(uiState.remainingReceivable, isPrivacyMode) else "—",
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = if (uiState.remainingReceivable > 0) AmberWarning else EmeraldSuccess
                             )
@@ -222,8 +227,9 @@ fun IncomeItemCard(
                 )
             }
 
+            val isPrivacyMode = LocalPrivacyMode.current
             Text(
-                text = "+ " + CurrencyFormatter.formatAmount(tx.amount),
+                text = "+ " + CurrencyFormatter.formatAmount(tx.amount, isPrivacyMode),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = EmeraldSuccess
             )

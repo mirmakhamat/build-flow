@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import uz.buildflow.app.core.preferences.LocalPrivacyMode
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.core.util.NumberAmountVisualTransformation
@@ -34,8 +35,12 @@ fun MetricCard(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     accentColor: Color = DeepBluePrimary,
-    subtitle: String? = null
+    subtitle: String? = null,
+    isMoney: Boolean = true
 ) {
+    val isPrivacyMode = LocalPrivacyMode.current
+    val displayAmount = if (isMoney && isPrivacyMode) "••••••" else amount
+
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
@@ -74,7 +79,7 @@ fun MetricCard(
                 }
             }
             Text(
-                text = amount,
+                text = displayAmount,
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                 color = accentColor
             )

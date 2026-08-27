@@ -20,10 +20,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import uz.buildflow.app.core.preferences.LocalPrivacyMode
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.domain.model.Worker
 import uz.buildflow.app.presentation.common.EmptyStateView
+import uz.buildflow.app.presentation.common.PrivacyToggleButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,10 +33,12 @@ fun WorkersScreen(
     viewModel: WorkersViewModel,
     onBackToObjects: (() -> Unit)? = null,
     onWorkerClick: (String) -> Unit,
-    onBatchAttendanceClick: () -> Unit
+    onBatchAttendanceClick: () -> Unit,
+    onTogglePrivacy: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val isPrivacyMode = LocalPrivacyMode.current
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { msg ->
@@ -71,6 +75,8 @@ fun WorkersScreen(
                     }
                 },
                 actions = {
+                    PrivacyToggleButton(onToggle = onTogglePrivacy)
+
                     // Barcha to'lovlar tarixi
                     IconButton(onClick = { viewModel.openAllPaymentsSheet() }) {
                         Icon(
@@ -338,6 +344,8 @@ fun WorkerCard(
                 )
             }
 
+            val isPrivacyMode = LocalPrivacyMode.current
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = worker.name,
@@ -345,7 +353,7 @@ fun WorkerCard(
                     color = TextPrimary
                 )
                 Text(
-                    text = "${worker.position ?: "Ishchi"} · ${CurrencyFormatter.formatAmountShort(worker.defaultRate)} / kun",
+                    text = "${worker.position ?: "Ishchi"} · ${CurrencyFormatter.formatAmountShort(worker.defaultRate, isPrivacyMode)} / kun",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextSecondary
                 )
@@ -356,7 +364,7 @@ fun WorkerCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "To'langan: ${CurrencyFormatter.formatAmountShort(stats?.totalPaid ?: 0.0)}",
+                        text = "To'langan: ${CurrencyFormatter.formatAmountShort(stats?.totalPaid ?: 0.0, isPrivacyMode)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextMuted
                     )
@@ -370,7 +378,7 @@ fun WorkerCard(
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
-                                text = "Qarzimiz: ${CurrencyFormatter.formatAmountShort(debt)}",
+                                text = "Qarzimiz: ${CurrencyFormatter.formatAmountShort(debt, isPrivacyMode)}",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                 color = RoseExpense,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -382,7 +390,7 @@ fun WorkerCard(
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
-                                text = "Ortiqcha avans: ${CurrencyFormatter.formatAmountShort(advance)}",
+                                text = "Ortiqcha avans: ${CurrencyFormatter.formatAmountShort(advance, isPrivacyMode)}",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                 color = EmeraldSuccess,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -392,7 +400,7 @@ fun WorkerCard(
                         Text(
                             text = "Hisob teng (0)",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted
+                            color = TextSecondary
                         )
                     }
                 }

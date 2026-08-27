@@ -10,11 +10,16 @@ object CurrencyFormatter {
     }
     private val decimalFormat = DecimalFormat("#,###", symbols)
 
-    fun formatAmount(amount: Double): String {
+    const val MASKED_AMOUNT = "•••••• so'm"
+    const val MASKED_AMOUNT_SHORT = "••••••"
+
+    fun formatAmount(amount: Double, isPrivacyMode: Boolean = false): String {
+        if (isPrivacyMode) return MASKED_AMOUNT
         return "${decimalFormat.format(amount.toLong())} so'm"
     }
 
-    fun formatAmountShort(amount: Double): String {
+    fun formatAmountShort(amount: Double, isPrivacyMode: Boolean = false): String {
+        if (isPrivacyMode) return MASKED_AMOUNT_SHORT
         return when {
             amount >= 1_000_000_000 -> {
                 val value = amount / 1_000_000_000.0

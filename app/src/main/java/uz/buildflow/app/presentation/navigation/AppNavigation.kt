@@ -118,6 +118,9 @@ fun AppNavigation(
                     },
                     onExportDatabase = {
                         DatabaseBackupHelper.exportDatabase(context, container.database)
+                    },
+                    onTogglePrivacy = {
+                        container.userPreferences.togglePrivacyMode()
                     }
                 )
             }
@@ -142,7 +145,8 @@ fun AppNavigation(
                     onNavigateToWorkers = { navController.navigate("object_workers/$objectId") },
                     onNavigateToExpenses = { navController.navigate("object_expenses/$objectId") },
                     onNavigateToIncomes = { navController.navigate("incomes/$objectId") },
-                    onNavigateToDailyAttendance = { navController.navigate("batch_attendance/$objectId") }
+                    onNavigateToDailyAttendance = { navController.navigate("batch_attendance/$objectId") },
+                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
                 )
             }
 
@@ -171,7 +175,8 @@ fun AppNavigation(
                     },
                     onBatchAttendanceClick = {
                         navController.navigate("batch_attendance/$objectId")
-                    }
+                    },
+                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
                 )
             }
 
@@ -192,7 +197,8 @@ fun AppNavigation(
                         navController.navigate("objects") {
                             popUpTo("objects") { inclusive = true }
                         }
-                    }
+                    },
+                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
                 )
             }
 
@@ -216,7 +222,8 @@ fun AppNavigation(
                         navController.navigate("objects") {
                             popUpTo("objects") { inclusive = true }
                         }
-                    }
+                    },
+                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
                 )
             }
 
@@ -233,7 +240,8 @@ fun AppNavigation(
                 )
                 IncomesScreen(
                     viewModel = viewModel,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
                 )
             }
 
@@ -264,7 +272,8 @@ fun AppNavigation(
                         val safeObjId = if (objId.isNotBlank()) objId else objectId
                         val encodedName = Uri.encode(workerName)
                         navController.navigate("worker_payments/$workerId?objectId=$safeObjId&name=$encodedName")
-                    }
+                    },
+                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
                 )
             }
 
@@ -293,7 +302,8 @@ fun AppNavigation(
                 WorkerPaymentsScreen(
                     viewModel = viewModel,
                     workerName = workerName,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
                 )
             }
 

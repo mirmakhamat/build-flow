@@ -2,12 +2,14 @@ package uz.buildflow.app.di
 
 import android.content.Context
 import uz.buildflow.app.core.database.AppDatabase
+import uz.buildflow.app.core.preferences.UserPreferences
 import uz.buildflow.app.data.repository.*
 import uz.buildflow.app.domain.repository.*
 import uz.buildflow.app.domain.usecase.*
 
 class AppContainer(context: Context) {
     val database: AppDatabase = AppDatabase.getInstance(context)
+    val userPreferences: UserPreferences = UserPreferences.getInstance(context)
 
     val objectRepository: ObjectRepository by lazy {
         ObjectRepositoryImpl(database.objectDao())

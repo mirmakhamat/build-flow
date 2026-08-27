@@ -118,7 +118,7 @@ fun AllWorkerPaymentsBottomSheet(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Jami summa paneli
+            val isPrivacyMode = uz.buildflow.app.core.preferences.LocalPrivacyMode.current
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -137,7 +137,7 @@ fun AllWorkerPaymentsBottomSheet(
                         color = TextPrimary
                     )
                     Text(
-                        text = CurrencyFormatter.formatAmount(totalAmount),
+                        text = CurrencyFormatter.formatAmount(totalAmount, isPrivacyMode),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = EmeraldSuccess
                     )
@@ -254,7 +254,7 @@ fun AllWorkerPaymentsBottomSheet(
                                 }
 
                                 Text(
-                                    text = CurrencyFormatter.formatAmount(payment.amount),
+                                    text = CurrencyFormatter.formatAmount(payment.amount, isPrivacyMode),
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = EmeraldSuccess
                                 )

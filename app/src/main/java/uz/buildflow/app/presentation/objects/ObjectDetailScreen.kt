@@ -18,9 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import uz.buildflow.app.core.preferences.LocalPrivacyMode
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.presentation.common.MetricCard
+import uz.buildflow.app.presentation.common.PrivacyToggleButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,11 +32,13 @@ fun ObjectDetailScreen(
     onNavigateToWorkers: () -> Unit,
     onNavigateToExpenses: () -> Unit,
     onNavigateToIncomes: () -> Unit,
-    onNavigateToDailyAttendance: () -> Unit
+    onNavigateToDailyAttendance: () -> Unit,
+    onTogglePrivacy: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val obj = uiState.obj
     val summary = uiState.summary
+    val isPrivacyMode = LocalPrivacyMode.current
 
     Scaffold(
         topBar = {
@@ -51,6 +55,7 @@ fun ObjectDetailScreen(
                     }
                 },
                 actions = {
+                    PrivacyToggleButton(onToggle = onTogglePrivacy)
                     IconButton(onClick = { viewModel.openEditSheet() }) {
                         Icon(
                             imageVector = Icons.Default.Edit,
@@ -101,7 +106,7 @@ fun ObjectDetailScreen(
                         )
                         if (obj.totalPrice > 0) {
                             Text(
-                                text = CurrencyFormatter.formatAmount(obj.totalPrice),
+                                text = CurrencyFormatter.formatAmount(obj.totalPrice, isPrivacyMode),
                                 style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
                                 color = SurfaceLight
                             )
@@ -130,7 +135,7 @@ fun ObjectDetailScreen(
                             Column {
                                 Text(text = "Tushgan pul", style = MaterialTheme.typography.labelMedium, color = TextMuted)
                                 Text(
-                                    text = CurrencyFormatter.formatAmount(summary?.totalReceivedIncome ?: 0.0),
+                                    text = CurrencyFormatter.formatAmount(summary?.totalReceivedIncome ?: 0.0, isPrivacyMode),
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = EmeraldSuccess
                                 )
@@ -138,7 +143,7 @@ fun ObjectDetailScreen(
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(text = "Mijozdan kutilmoqda", style = MaterialTheme.typography.labelMedium, color = TextMuted)
                                 Text(
-                                    text = if (obj.totalPrice > 0) CurrencyFormatter.formatAmount(summary?.remainingReceivable ?: 0.0) else "— (summa yo'q)",
+                                    text = if (obj.totalPrice > 0) CurrencyFormatter.formatAmount(summary?.remainingReceivable ?: 0.0, isPrivacyMode) else "— (summa yo'q)",
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = AmberWarning
                                 )
@@ -162,14 +167,14 @@ fun ObjectDetailScreen(
                 ) {
                     MetricCard(
                         title = "Qo'ldagi pul (Kassa)",
-                        amount = CurrencyFormatter.formatAmountShort(summary?.cashBalance ?: 0.0) + " so'm",
+                        amount = CurrencyFormatter.formatAmountShort(summary?.cashBalance ?: 0.0, isPrivacyMode) + if (!isPrivacyMode) " so'm" else "",
                         accentColor = if ((summary?.cashBalance ?: 0.0) >= 0) EmeraldSuccess else RoseExpense,
                         icon = Icons.Default.AccountBalanceWallet,
                         modifier = Modifier.weight(1f)
                     )
                     MetricCard(
                         title = "Jami Xarajat (Hisoblangan)",
-                        amount = CurrencyFormatter.formatAmountShort(summary?.totalExpenses ?: 0.0) + " so'm",
+                        amount = CurrencyFormatter.formatAmountShort(summary?.totalExpenses ?: 0.0, isPrivacyMode) + if (!isPrivacyMode) " so'm" else "",
                         accentColor = RoseExpense,
                         icon = Icons.AutoMirrored.Filled.ReceiptLong,
                         modifier = Modifier.weight(1f)
@@ -186,14 +191,16 @@ fun ObjectDetailScreen(
                         amount = "${summary?.totalWorkerCount ?: 0} nafar",
                         accentColor = DeepBlueLight,
                         icon = Icons.Default.Group,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        isMoney = false
                     )
                     MetricCard(
                         title = "Bajarilgan Ish Kunlari",
                         amount = "${summary?.totalWorkDaysCount ?: 0} kun",
                         accentColor = AmberWarning,
                         icon = Icons.Default.EventAvailable,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        isMoney = false
                     )
                 }
 
@@ -236,7 +243,7 @@ fun ObjectDetailScreen(
                                     color = TextSecondary
                                 )
                                 Text(
-                                    text = if (obj.totalPrice > 0) CurrencyFormatter.formatAmount(summary?.estimatedProfit ?: 0.0) else "Kiritilmagan",
+                                    text = if (obj.totalPrice > 0) CurrencyFormatter.formatAmount(summary?.estimatedProfit ?: 0.0, isPrivacyMode) else "Kiritilmagan",
                                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                                     color = if (obj.totalPrice > 0) {
                                         if ((summary?.estimatedProfit ?: 0.0) >= 0) EmeraldSuccess else RoseExpense

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import uz.buildflow.app.core.preferences.LocalPrivacyMode
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CalendarDayItem
 import uz.buildflow.app.core.util.CurrencyFormatter
@@ -32,17 +33,20 @@ import uz.buildflow.app.domain.model.*
 import uz.buildflow.app.presentation.common.AmountInputField
 import uz.buildflow.app.presentation.common.DatePickerField
 import uz.buildflow.app.presentation.common.MetricCard
+import uz.buildflow.app.presentation.common.PrivacyToggleButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkerDetailScreen(
     viewModel: WorkerDetailViewModel,
     onBack: () -> Unit,
-    onNavigateToPayments: (objectId: String, workerName: String) -> Unit = { _, _ -> }
+    onNavigateToPayments: (objectId: String, workerName: String) -> Unit = { _, _ -> },
+    onTogglePrivacy: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val worker = uiState.worker
     val stats = uiState.stats
+    val isPrivacyMode = LocalPrivacyMode.current
 
     // FIFO Hisob-kitobi: Har bir kun va bonus uchun to'langan/qolgan qarz summasi
     val (settlementMap, bonusPaidMap) = remember(uiState.days, uiState.payments, uiState.generalBonuses) {
@@ -76,6 +80,7 @@ fun WorkerDetailScreen(
                     }
                 },
                 actions = {
+                    PrivacyToggleButton(onToggle = onTogglePrivacy)
                     IconButton(onClick = { viewModel.refresh() }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -121,11 +126,12 @@ fun WorkerDetailScreen(
                             amount = "${stats?.workedDaysCount ?: 0} kun",
                             accentColor = DeepBlueLight,
                             icon = Icons.Default.CalendarToday,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            isMoney = false
                         )
                         MetricCard(
                             title = "To'langan",
-                            amount = CurrencyFormatter.formatAmountShort(stats?.totalPaid ?: 0.0),
+                            amount = CurrencyFormatter.formatAmountShort(stats?.totalPaid ?: 0.0, isPrivacyMode),
                             accentColor = EmeraldSuccess,
                             icon = Icons.Default.CheckCircle,
                             modifier = Modifier.weight(1f)
@@ -136,7 +142,7 @@ fun WorkerDetailScreen(
                         if (debt > 0) {
                             MetricCard(
                                 title = "Bizning qarzimiz",
-                                amount = CurrencyFormatter.formatAmountShort(debt),
+                                amount = CurrencyFormatter.formatAmountShort(debt, isPrivacyMode),
                                 accentColor = RoseExpense,
                                 icon = Icons.Default.AccountBalanceWallet,
                                 modifier = Modifier.weight(1f)
@@ -144,7 +150,7 @@ fun WorkerDetailScreen(
                         } else if (advance > 0) {
                             MetricCard(
                                 title = "Ishchining qarzi",
-                                amount = CurrencyFormatter.formatAmountShort(advance),
+                                amount = CurrencyFormatter.formatAmountShort(advance, isPrivacyMode),
                                 accentColor = EmeraldSuccess,
                                 icon = Icons.Default.Savings,
                                 modifier = Modifier.weight(1f)
@@ -199,7 +205,7 @@ fun WorkerDetailScreen(
                                             color = DeepBluePrimary
                                         )
                                         Text(
-                                            text = "Jami: ${CurrencyFormatter.formatAmountShort(stats?.totalPaid ?: 0.0)}",
+                                            text = "Jami: ${CurrencyFormatter.formatAmountShort(stats?.totalPaid ?: 0.0, isPrivacyMode)}",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = TextSecondary
                                         )
@@ -577,9 +583,10 @@ fun CalendarDayCell(
             if (hasAccrual) {
                 // Agar qarz bo'lsa -> Aynan qolgan QARZ summasi (masalan: 300k, 200k, 100k) chiqadi!
                 // Agar to'liq to'langan bo'lsa -> Jami ishlab topilgan summa chiqadi!
+                val isPrivacyMode = LocalPrivacyMode.current
                 val displayAmount = if (isFullyPaid) totalAccrued else totalDebt
                 Text(
-                    text = CurrencyFormatter.formatAmountShort(displayAmount),
+                    text = CurrencyFormatter.formatAmountShort(displayAmount, isPrivacyMode),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                     color = textColor.copy(alpha = 0.95f)
                 )
@@ -603,7 +610,7 @@ fun CalendarLegend() {
 }
 
 @Composable
-fun LegendItem(color: Color, label: String) {
+private fun LegendItem(color: Color, label: String) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -611,7 +618,7 @@ fun LegendItem(color: Color, label: String) {
         Box(
             modifier = Modifier
                 .size(10.dp)
-                .background(color, RoundedCornerShape(3.dp))
+                .background(color, shape = CircleShape)
         )
         Text(
             text = label,
@@ -648,14 +655,21 @@ fun DayDetailBottomSheet(
     onEditBonusClick: (GeneralBonus) -> Unit,
     onDeleteBonusClick: (GeneralBonus) -> Unit
 ) {
-    var status by remember(existingRecord) { mutableStateOf(existingRecord?.status ?: AttendanceStatus.WORKED) }
-    var paymentStr by remember(existingRecord) {
+    val isPrivacyMode = LocalPrivacyMode.current
+    var isEditingAttendanceForm by remember { mutableStateOf(existingRecord == null) }
+    var status by remember { mutableStateOf(existingRecord?.status ?: AttendanceStatus.WORKED) }
+    var paymentStr by remember {
         mutableStateOf(
-            existingRecord?.paymentAmount?.toLong()?.toString()
-                ?: defaultRate.toLong().toString()
+            if (existingRecord != null) {
+                if (existingRecord.paymentAmount == 0.0) "0" else existingRecord.paymentAmount.toLong().toString()
+            } else {
+                defaultRate.toLong().toString()
+            }
         )
     }
-    var note by remember(existingRecord) { mutableStateOf(existingRecord?.note ?: "") }
+    var note by remember { mutableStateOf(existingRecord?.note ?: "") }
+
+    val hasAnyRecords = existingRecord != null || bonusesOnDay.isNotEmpty()
 
     val displayBonusItems = remember(bonusesOnDay, bonusPaidMap) {
         bonusesOnDay.map { gb ->
@@ -668,14 +682,11 @@ fun DayDetailBottomSheet(
                 remainingDebt = debt,
                 date = gb.date,
                 reason = gb.reason,
-                isPaid = debt == 0.0 && gb.amount > 0,
+                isPaid = gb.amount > 0.0 && debt == 0.0,
                 rawGeneralBonus = gb
             )
         }
     }
-
-    val hasAnyRecords = existingRecord != null || displayBonusItems.isNotEmpty()
-    var isEditingAttendanceForm by remember { mutableStateOf(!hasAnyRecords) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -831,20 +842,20 @@ fun DayDetailBottomSheet(
                                         if (salaryDebt == 0.0) {
                                             Text(text = "To'langan", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = EmeraldSuccess)
                                         } else if (salaryPaid > 0.0) {
-                                            Text(text = "Qarz (${CurrencyFormatter.formatAmountShort(salaryDebt)} qoldi)", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = AmberWarning)
+                                            Text(text = "Qarz (${CurrencyFormatter.formatAmountShort(salaryDebt, isPrivacyMode)} qoldi)", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = AmberWarning)
                                         } else {
                                             Text(text = "Qarz", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = AmberWarning)
                                         }
                                     }
                                 }
                                 Text(
-                                    text = "Stavka: " + CurrencyFormatter.formatAmount(existingRecord.paymentAmount),
+                                    text = "Stavka: " + CurrencyFormatter.formatAmount(existingRecord.paymentAmount, isPrivacyMode),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = DeepBluePrimary
                                 )
                                 if (salaryPaid > 0.0 && salaryDebt > 0.0) {
                                     Text(
-                                        text = "To'langan: ${CurrencyFormatter.formatAmount(salaryPaid)} | Qolgan qarz: ${CurrencyFormatter.formatAmount(salaryDebt)}",
+                                        text = "To'langan: ${CurrencyFormatter.formatAmount(salaryPaid, isPrivacyMode)} | Qolgan qarz: ${CurrencyFormatter.formatAmount(salaryDebt, isPrivacyMode)}",
                                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                                         color = AmberWarning
                                     )
@@ -941,7 +952,7 @@ fun DayDetailBottomSheet(
                                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                                         ) {
                                             Text(
-                                                text = "Bonus: " + CurrencyFormatter.formatAmount(bonusItem.amount),
+                                                text = "Bonus: " + CurrencyFormatter.formatAmount(bonusItem.amount, isPrivacyMode),
                                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                                 color = itemColor
                                             )
@@ -953,7 +964,7 @@ fun DayDetailBottomSheet(
                                                 )
                                             } else if (bonusItem.paidAmount > 0.0) {
                                                 Text(
-                                                    text = "Qarz (${CurrencyFormatter.formatAmountShort(bonusItem.remainingDebt)} qoldi)",
+                                                    text = "Qarz (${CurrencyFormatter.formatAmountShort(bonusItem.remainingDebt, isPrivacyMode)} qoldi)",
                                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                                     color = AmberWarning
                                                 )
@@ -967,7 +978,7 @@ fun DayDetailBottomSheet(
                                         }
                                         if (bonusItem.paidAmount > 0.0 && bonusItem.remainingDebt > 0.0) {
                                             Text(
-                                                text = "To'langan: ${CurrencyFormatter.formatAmount(bonusItem.paidAmount)} | Qolgan qarz: ${CurrencyFormatter.formatAmount(bonusItem.remainingDebt)}",
+                                                text = "To'langan: ${CurrencyFormatter.formatAmount(bonusItem.paidAmount, isPrivacyMode)} | Qolgan qarz: ${CurrencyFormatter.formatAmount(bonusItem.remainingDebt, isPrivacyMode)}",
                                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                                                 color = AmberWarning
                                             )
