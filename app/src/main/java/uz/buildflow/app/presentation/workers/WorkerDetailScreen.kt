@@ -568,7 +568,7 @@ fun DayDetailBottomSheet(
     val isDayUnpaid = existingRecord != null && existingRecord.status != AttendanceStatus.ABSENT && !isDayPaid
 
     // 2. BONUSLAR BO'LIMI UCHUN BARCHA BONUSLAR
-    val displayBonusItems = remember(bonusesOnDay, paymentsOnDay) {
+    val displayBonusItems = remember(bonusesOnDay, paymentsOnDay, isWorkerFullySettled) {
         val list = mutableListOf<DisplayBonusItem>()
         val bonusPayments = paymentsOnDay.filter { it.type == PaymentType.BONUS_PAYOUT }
         val usedPaymentIds = mutableSetOf<String>()
@@ -595,7 +595,7 @@ fun DayDetailBottomSheet(
                         amount = gb.amount,
                         date = gb.date,
                         reason = gb.reason,
-                        isPaid = false,
+                        isPaid = isWorkerFullySettled,
                         rawGeneralBonus = gb,
                         rawPayment = null
                     )
@@ -1035,11 +1035,29 @@ fun DayDetailBottomSheet(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Bonus: " + CurrencyFormatter.formatAmount(bonusItem.amount),
-                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                                color = itemColor
-                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Bonus: " + CurrencyFormatter.formatAmount(bonusItem.amount),
+                                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                    color = itemColor
+                                                )
+                                                if (isPaid) {
+                                                    Text(
+                                                        text = "To'langan",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                        color = EmeraldSuccess
+                                                    )
+                                                } else {
+                                                    Text(
+                                                        text = "Qarz",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                        color = AmberWarning
+                                                    )
+                                                }
+                                            }
                                             if (!bonusItem.reason.isNullOrBlank()) {
                                                 Text(text = bonusItem.reason, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                                             }
