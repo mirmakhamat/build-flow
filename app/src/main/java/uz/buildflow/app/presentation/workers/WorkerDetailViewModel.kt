@@ -132,10 +132,7 @@ class WorkerDetailViewModel(
     fun saveDayRecord(
         status: AttendanceStatus,
         paymentAmount: Double,
-        isPaid: Boolean,
         note: String?,
-        payerObjectId: String? = null,
-        paymentDate: String? = null,
         targetDate: String? = null
     ) {
         viewModelScope.launch {
@@ -144,13 +141,10 @@ class WorkerDetailViewModel(
             val existingDays = workerDayRepository.getDaysByWorker(workerId).firstOrNull() ?: emptyList()
             val existing = existingDays.find { it.date == date }
 
-            val paymentStatus = if (isPaid && paymentAmount > 0) PaymentStatus.PAID else PaymentStatus.UNPAID
-
             if (existing != null) {
                 val updated = existing.copy(
                     status = status,
                     paymentAmount = paymentAmount,
-                    paymentStatus = paymentStatus,
                     note = note,
                     updatedAt = System.currentTimeMillis()
                 )
@@ -161,41 +155,12 @@ class WorkerDetailViewModel(
                     date = date,
                     status = status,
                     paymentAmount = paymentAmount,
-                    paymentStatus = paymentStatus,
+                    paymentStatus = PaymentStatus.UNPAID,
                     note = note
                 )
                 workerDayRepository.saveWorkerDay(newRecord)
             }
 
-            val existingPayments = transactionRepository.getPaymentsByWorker(workerId).firstOrNull() ?: emptyList()
-            val existingDaySalaryPayment = existingPayments.find { it.date == date && it.type == PaymentType.SALARY }
-
-            if (isPaid && paymentAmount > 0) {
-                if (existingDaySalaryPayment != null) {
-                    transactionRepository.updateWorkerPayment(
-                        existingDaySalaryPayment.copy(
-                            amount = paymentAmount,
-                            payerObjectId = payerObjectId,
-                            paymentDate = paymentDate,
-                            description = "${DateUtil.formatToDisplay(date)} kunlik ish haqi to'landi"
-                        )
-                    )
-                } else {
-                    val payment = WorkerPayment(
-                        workerId = workerId,
-                        objectId = worker.objectId,
-                        payerObjectId = payerObjectId,
-                        amount = paymentAmount,
-                        date = date,
-                        paymentDate = paymentDate,
-                        type = PaymentType.SALARY,
-                        description = "${DateUtil.formatToDisplay(date)} kunlik ish haqi to'landi"
-                    )
-                    transactionRepository.insertWorkerPayment(payment)
-                }
-            } else if (!isPaid && existingDaySalaryPayment != null) {
-                transactionRepository.deleteWorkerPayment(existingDaySalaryPayment)
-            }
             reconcileUnpaidDays()
             closeDayEditSheet()
         }
