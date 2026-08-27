@@ -71,6 +71,15 @@ fun WorkersScreen(
                     }
                 },
                 actions = {
+                    // Barcha to'lovlar tarixi
+                    IconButton(onClick = { viewModel.openAllPaymentsSheet() }) {
+                        Icon(
+                            imageVector = Icons.Default.ReceiptLong,
+                            contentDescription = "To'lovlar tarixi",
+                            tint = DeepBluePrimary
+                        )
+                    }
+
                     // Boshqa obyektdan ishchi olib kelish (Import)
                     IconButton(onClick = { viewModel.openImportWorkerSheet() }) {
                         Icon(
@@ -190,18 +199,27 @@ fun WorkersScreen(
                             HorizontalDivider(color = BorderColor.copy(alpha = 0.5f))
 
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewModel.openAllPaymentsSheet() },
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "Jami to'langan ish haqlari:",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextMuted
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.ReceiptLong, contentDescription = null, tint = DeepBluePrimary, modifier = Modifier.size(16.dp))
+                                    Text(
+                                        text = "Barcha to'lovlar tarixi (${uiState.allPayments.size})",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                        color = DeepBluePrimary
+                                    )
+                                }
                                 Text(
                                     text = CurrencyFormatter.formatAmount(totalPaidSum),
                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = DeepBluePrimary
+                                    color = EmeraldSuccess
                                 )
                             }
                         }
@@ -232,6 +250,21 @@ fun WorkersScreen(
                 }
             }
         }
+    }
+
+    // Barcha to'lovlar tarixi Sheet
+    if (uiState.isAllPaymentsSheetOpen) {
+        AllWorkerPaymentsBottomSheet(
+            payments = uiState.allPayments,
+            workers = uiState.workers.map { it.worker },
+            availableObjects = uiState.availableObjects,
+            currentObjectId = uiState.selectedObjectId ?: "",
+            onDismiss = { viewModel.closeAllPaymentsSheet() },
+            onPaymentClick = { payment ->
+                viewModel.closeAllPaymentsSheet()
+                onWorkerClick(payment.workerId)
+            }
+        )
     }
 
     // Ommaviy ish haqi to'lash Sheet

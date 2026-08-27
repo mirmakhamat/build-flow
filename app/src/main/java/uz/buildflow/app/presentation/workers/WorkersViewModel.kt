@@ -26,6 +26,7 @@ data class ImportableWorkerItem(
 
 data class WorkersUiState(
     val workers: List<WorkerWithStats> = emptyList(),
+    val allPayments: List<WorkerPayment> = emptyList(),
     val availableObjects: List<BuildObject> = emptyList(),
     val selectedObjectId: String? = null,
     val isAddEditSheetOpen: Boolean = false,
@@ -38,7 +39,9 @@ data class WorkersUiState(
     val isImportSheetOpen: Boolean = false,
     val importableWorkers: List<ImportableWorkerItem> = emptyList(),
     // Ommaviy ish haqi to'lash (Bulk payout) holatlari
-    val isBulkPayoutSheetOpen: Boolean = false
+    val isBulkPayoutSheetOpen: Boolean = false,
+    // Barcha to'lovlar tarixi Sheet
+    val isAllPaymentsSheetOpen: Boolean = false
 )
 
 class WorkersViewModel(
@@ -54,6 +57,7 @@ class WorkersViewModel(
     val uiState: StateFlow<WorkersUiState> = _uiState.asStateFlow()
 
     private var loadJob: Job? = null
+    private var paymentsJob: Job? = null
 
     init {
         loadObjectsAndWorkers(initialObjectId)
@@ -117,6 +121,22 @@ class WorkersViewModel(
                 }
             }
         }
+
+        paymentsJob?.cancel()
+        paymentsJob = viewModelScope.launch {
+            transactionRepository.getPaymentsByObject(objectId).collect { paymentsList ->
+                _uiState.update { it.copy(allPayments = paymentsList) }
+            }
+        }
+    }
+
+    // BARCHA TO'LOVLAR TARIXI (ALL PAYMENTS)
+    fun openAllPaymentsSheet() {
+        _uiState.update { it.copy(isAllPaymentsSheetOpen = true) }
+    }
+
+    fun closeAllPaymentsSheet() {
+        _uiState.update { it.copy(isAllPaymentsSheetOpen = false) }
     }
 
     // OMMAVIY TO'LOV (BULK PAYOUT)

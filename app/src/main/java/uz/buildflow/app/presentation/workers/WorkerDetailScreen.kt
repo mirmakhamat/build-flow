@@ -560,14 +560,8 @@ fun DayDetailBottomSheet(
         paymentsOnDay.filter { it.type != PaymentType.BONUS_PAYOUT }
     }
 
-    // Haqiqiy to'langanlik holati (WorkerPayment borligi tekshiriladi)
-    val salaryPaymentOnDay = remember(paymentsOnDay) {
-        paymentsOnDay.find { it.type == PaymentType.SALARY && it.amount > 0 }
-    }
-    val isDayPaid = existingRecord != null && (
-        existingRecord.paymentStatus == PaymentStatus.PAID && salaryPaymentOnDay != null
-    )
-    val isDayUnpaid = existingRecord != null && existingRecord.status != AttendanceStatus.ABSENT && !isDayPaid
+    val isDayPaid = existingRecord != null && existingRecord.status != AttendanceStatus.ABSENT && existingRecord.paymentStatus == PaymentStatus.PAID
+    val isDayUnpaid = existingRecord != null && existingRecord.status != AttendanceStatus.ABSENT && existingRecord.paymentStatus == PaymentStatus.UNPAID
 
     // 2. BONUSLAR BO'LIMI UCHUN BARCHA BONUSLAR
     val displayBonusItems = remember(bonusesOnDay, paymentsOnDay) {
