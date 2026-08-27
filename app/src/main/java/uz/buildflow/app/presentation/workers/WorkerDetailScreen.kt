@@ -293,33 +293,51 @@ fun WorkerDetailScreen(
         }
     }
 
+    // Yagona FIFO Navbati: Ham kunlik stavkalar, ham bonuslar sana bo'yicha ketma-ket qoplanadi
+    val (coveredDaysSet, coveredBonusIdsSet) = remember(uiState.days, uiState.payments, uiState.generalBonuses) {
+        val totalPaid = uiState.payments.sumOf { it.amount }
+        val accruals = mutableListOf<UnifiedAccrual>()
+
+        uiState.days
+            .filter { it.status != AttendanceStatus.ABSENT && it.paymentAmount > 0 }
+            .forEach { accruals.add(UnifiedAccrual(id = it.id, date = it.date, amount = it.paymentAmount, isBonus = false)) }
+
+        uiState.generalBonuses
+            .filter { it.amount > 0 }
+            .forEach { accruals.add(UnifiedAccrual(id = it.id, date = it.date, amount = it.amount, isBonus = true)) }
+
+        accruals.sortBy { it.date }
+
+        val paidDays = mutableSetOf<String>()
+        val paidBonuses = mutableSetOf<String>()
+
+        var budget = totalPaid
+        for (item in accruals) {
+            if (budget >= item.amount) {
+                if (item.isBonus) {
+                    paidBonuses.add(item.id)
+                } else {
+                    paidDays.add(item.date)
+                }
+                budget -= item.amount
+            } else {
+                break
+            }
+        }
+        Pair(paidDays, paidBonuses)
+    }
+
     // Kunlik Davomat va Bonuslar Modal Sheet
     if (uiState.isDayEditSheetOpen && uiState.selectedDate != null) {
         val targetDate = uiState.selectedDate!!
-        val isDayCovered = remember(uiState.days, uiState.payments, targetDate) {
-            val totalPaid = uiState.payments.sumOf { it.amount }
-            val workedDays = uiState.days
-                .filter { it.status != AttendanceStatus.ABSENT && it.paymentAmount > 0 }
-                .sortedBy { it.date }
-
-            val set = mutableSetOf<String>()
-            var budget = totalPaid
-            for (day in workedDays) {
-                if (budget >= day.paymentAmount) {
-                    set.add(day.date)
-                    budget -= day.paymentAmount
-                } else {
-                    break
-                }
-            }
-            set.contains(targetDate)
-        }
+        val isDayCovered = coveredDaysSet.contains(targetDate)
 
         DayDetailBottomSheet(
             date = targetDate,
             existingRecord = uiState.selectedDayRecord,
             bonusesOnDay = uiState.selectedDateBonuses,
             isDayPaid = isDayCovered,
+            paidBonusIds = coveredBonusIdsSet,
             defaultRate = worker?.defaultRate ?: 300000.0,
             onDismiss = { viewModel.closeDayEditSheet() },
             onDeleteDay = { rec -> viewModel.deleteDayRecord(rec) },
@@ -337,12 +355,10 @@ fun WorkerDetailScreen(
         AddBonusBottomSheet(
             existingBonus = uiState.selectedBonus,
             defaultDate = uiState.selectedDate ?: DateUtil.today(),
-            availableObjects = uiState.availableObjects,
-            currentObjectId = worker?.objectId ?: "",
             onDismiss = { viewModel.closeBonusSheet() },
             onDelete = { b -> viewModel.deleteGeneralBonus(b) },
-            onSave = { amount, date, reason, isPaid, payerObjId ->
-                viewModel.saveGeneralBonus(amount, date, reason, isPaid, payerObjId)
+            onSave = { amount, date, reason ->
+                viewModel.saveGeneralBonus(amount, date, reason)
             }
         )
     }
@@ -550,6 +566,13 @@ fun LegendItem(color: Color, label: String) {
     }
 }
 
+data class UnifiedAccrual(
+    val id: String,
+    val date: String,
+    val amount: Double,
+    val isBonus: Boolean
+)
+
 data class DisplayBonusItem(
     val id: String,
     val amount: Double,
@@ -566,6 +589,7 @@ fun DayDetailBottomSheet(
     existingRecord: WorkerDay?,
     bonusesOnDay: List<GeneralBonus>,
     isDayPaid: Boolean = false,
+    paidBonusIds: Set<String> = emptySet(),
     defaultRate: Double,
     onDismiss: () -> Unit,
     onDeleteDay: ((WorkerDay) -> Unit)?,
@@ -583,14 +607,14 @@ fun DayDetailBottomSheet(
     }
     var note by remember(existingRecord) { mutableStateOf(existingRecord?.note ?: "") }
 
-    val displayBonusItems = remember(bonusesOnDay, isDayPaid) {
+    val displayBonusItems = remember(bonusesOnDay, paidBonusIds) {
         bonusesOnDay.map { gb ->
             DisplayBonusItem(
                 id = gb.id,
                 amount = gb.amount,
                 date = gb.date,
                 reason = gb.reason,
-                isPaid = isDayPaid,
+                isPaid = paidBonusIds.contains(gb.id),
                 rawGeneralBonus = gb
             )
         }
@@ -908,11 +932,9 @@ fun DayDetailBottomSheet(
 fun AddBonusBottomSheet(
     existingBonus: GeneralBonus? = null,
     defaultDate: String = DateUtil.today(),
-    availableObjects: List<BuildObject> = emptyList(),
-    currentObjectId: String = "",
     onDismiss: () -> Unit,
     onDelete: ((GeneralBonus) -> Unit)? = null,
-    onSave: (amount: Double, date: String, reason: String?, isPaid: Boolean, payerObjectId: String?) -> Unit
+    onSave: (amount: Double, date: String, reason: String?) -> Unit
 ) {
     val targetDate = remember { existingBonus?.date ?: defaultDate }
     var amountStr by remember(existingBonus) {
@@ -921,8 +943,6 @@ fun AddBonusBottomSheet(
     var reason by remember(existingBonus) {
         mutableStateOf(existingBonus?.reason ?: "")
     }
-    var selectedPayerObjectId by remember { mutableStateOf<String?>(null) }
-    var isObjectMenuExpanded by remember { mutableStateOf(false) }
 
     val isEditMode = existingBonus != null && existingBonus.amount > 0
 
@@ -963,52 +983,6 @@ fun AddBonusBottomSheet(
                 label = "Bonus summasi (so'm)"
             )
 
-            // KROSS-OBYEKT KASSA SELEKTORI
-            if (availableObjects.isNotEmpty()) {
-                val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
-                val currentObj = availableObjects.find { it.id == currentObjectId }
-                val displayName = selectedObj?.name ?: "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"
-
-                ExposedDropdownMenuBox(
-                    expanded = isObjectMenuExpanded,
-                    onExpandedChange = { isObjectMenuExpanded = !isObjectMenuExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = displayName,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("To'lov manbasi (Obyekt kassasi)") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isObjectMenuExpanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = isObjectMenuExpanded,
-                        onDismissRequest = { isObjectMenuExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)") },
-                            onClick = {
-                                selectedPayerObjectId = null
-                                isObjectMenuExpanded = false
-                            }
-                        )
-                        availableObjects.filter { it.id != currentObjectId }.forEach { objItem ->
-                            DropdownMenuItem(
-                                text = { Text("${objItem.name} kassasidan") },
-                                onClick = {
-                                    selectedPayerObjectId = objItem.id
-                                    isObjectMenuExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
             OutlinedTextField(
                 value = reason,
                 onValueChange = { reason = it },
@@ -1019,44 +993,21 @@ fun AddBonusBottomSheet(
 
             var isSaving by remember { mutableStateOf(false) }
 
-            // ASOSIY TUGMALAR
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Button(
+                onClick = {
+                    if (!isSaving) {
+                        isSaving = true
+                        val amt = amountStr.toDoubleOrNull() ?: 0.0
+                        onSave(amt, targetDate, reason.trim().ifBlank { null })
+                        onDismiss()
+                    }
+                },
+                enabled = !isSaving && amountStr.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = DeepBluePrimary, contentColor = Color.White)
             ) {
-                Button(
-                    onClick = {
-                        if (!isSaving) {
-                            isSaving = true
-                            val amt = amountStr.toDoubleOrNull() ?: 0.0
-                            onSave(amt, targetDate, reason.trim().ifBlank { null }, true, selectedPayerObjectId)
-                            onDismiss()
-                        }
-                    },
-                    enabled = !isSaving && amountStr.isNotBlank(),
-                    modifier = Modifier.weight(1f).height(46.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess, contentColor = Color.White)
-                ) {
-                    Text("Pul berildi", color = Color.White, fontSize = 13.sp)
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        if (!isSaving) {
-                            isSaving = true
-                            val amt = amountStr.toDoubleOrNull() ?: 0.0
-                            onSave(amt, targetDate, reason.trim().ifBlank { null }, false, selectedPayerObjectId)
-                            onDismiss()
-                        }
-                    },
-                    enabled = !isSaving && amountStr.isNotBlank(),
-                    modifier = Modifier.weight(1f).height(46.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = DeepBluePrimary)
-                ) {
-                    Text("Qarzga yozish", color = DeepBluePrimary, fontSize = 13.sp)
-                }
+                Text("Bonusni Saqlash", fontWeight = FontWeight.Bold, color = Color.White)
             }
 
             if (isEditMode && onDelete != null && existingBonus != null) {
@@ -1070,9 +1021,11 @@ fun AddBonusBottomSheet(
                         contentColor = RoseExpense
                     )
                 ) {
-                    Icon(imageVector = Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = RoseExpense)
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "O'chirish"
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Bonusni o'chirish", color = RoseExpense, fontSize = 13.sp)
                 }
             }
 

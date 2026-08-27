@@ -194,7 +194,7 @@ class WorkerDetailViewModel(
         _uiState.update { it.copy(isBonusSheetOpen = false, selectedBonus = null) }
     }
 
-    fun saveGeneralBonus(amount: Double, date: String, reason: String?, isPaid: Boolean, payerObjectId: String? = null) {
+    fun saveGeneralBonus(amount: Double, date: String, reason: String?) {
         viewModelScope.launch {
             val worker = _uiState.value.worker ?: return@launch
             val existing = _uiState.value.selectedBonus
@@ -217,48 +217,15 @@ class WorkerDetailViewModel(
                 workerDayRepository.insertGeneralBonus(bonus)
             }
 
-            val existingPayments = transactionRepository.getPaymentsByWorker(workerId).firstOrNull() ?: emptyList()
-            val existingBonusPayment = existingPayments.find { it.date == date && it.type == PaymentType.BONUS_PAYOUT }
-
-            if (isPaid && amount > 0) {
-                val desc = reason?.ifBlank { null } ?: "${DateUtil.formatToDisplay(date)} bonusi to'landi"
-                if (existingBonusPayment != null) {
-                    transactionRepository.updateWorkerPayment(
-                        existingBonusPayment.copy(
-                            amount = amount,
-                            payerObjectId = payerObjectId,
-                            description = desc
-                        )
-                    )
-                } else {
-                    val payment = WorkerPayment(
-                        workerId = workerId,
-                        objectId = worker.objectId,
-                        payerObjectId = payerObjectId,
-                        amount = amount,
-                        date = date,
-                        type = PaymentType.BONUS_PAYOUT,
-                        description = desc
-                    )
-                    transactionRepository.insertWorkerPayment(payment)
-                }
-            } else if (!isPaid && existingBonusPayment != null) {
-                transactionRepository.deleteWorkerPayment(existingBonusPayment)
-            }
-
+            reconcileUnpaidDays()
             closeBonusSheet()
         }
     }
 
-
     fun deleteGeneralBonus(bonus: GeneralBonus) {
         viewModelScope.launch {
             workerDayRepository.deleteGeneralBonus(bonus)
-            val existingPayments = transactionRepository.getPaymentsByWorker(workerId).firstOrNull() ?: emptyList()
-            val bonusPayment = existingPayments.find { it.date == bonus.date && it.type == PaymentType.BONUS_PAYOUT }
-            if (bonusPayment != null) {
-                transactionRepository.deleteWorkerPayment(bonusPayment)
-            }
+            reconcileUnpaidDays()
             closeBonusSheet()
         }
     }
