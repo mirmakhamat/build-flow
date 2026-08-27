@@ -16,8 +16,11 @@ import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import uz.buildflow.app.core.theme.DeepBluePrimary
 import uz.buildflow.app.core.theme.SurfaceLight
+import uz.buildflow.app.core.theme.TextSecondary
+import uz.buildflow.app.core.util.BiometricHelper
 import uz.buildflow.app.core.util.DatabaseBackupHelper
 import uz.buildflow.app.di.AppContainer
+import uz.buildflow.app.presentation.common.findFragmentActivity
 import uz.buildflow.app.presentation.expenses.ExpensesScreen
 import uz.buildflow.app.presentation.expenses.ExpensesViewModel
 import uz.buildflow.app.presentation.objects.ObjectDetailScreen
@@ -64,6 +67,30 @@ fun AppNavigation(
         ObjectTab.Reports
     )
 
+    val activity = context.findFragmentActivity()
+
+    val handleTogglePrivacy = {
+        val isCurrentlyMasked = container.userPreferences.isPrivacyMode.value
+        if (isCurrentlyMasked) {
+            // Hozir berkitilgan -> Ochish uchun biometrika (Touch ID / Face ID / PIN) so'raymiz
+            if (activity != null) {
+                BiometricHelper.authenticate(
+                    activity = activity,
+                    title = "Maxfiylik Rejimi",
+                    subtitle = "Summalarni ko'rish uchun Touch ID / Face ID yoki PIN-kodni tasdiqlang",
+                    onSuccess = {
+                        container.userPreferences.setPrivacyMode(false)
+                    }
+                )
+            } else {
+                container.userPreferences.setPrivacyMode(false)
+            }
+        } else {
+            // Hozir ochiq -> Darhol berkitamiz (hech qanday biometrika so'ralmaydi)
+            container.userPreferences.setPrivacyMode(true)
+        }
+    }
+
     Scaffold(
         bottomBar = {
             if (isInsideObjectScope && currentObjectId != null) {
@@ -79,10 +106,12 @@ fun AppNavigation(
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = DeepBluePrimary,
                                 selectedTextColor = DeepBluePrimary,
-                                indicatorColor = SurfaceLight
+                                indicatorColor = DeepBluePrimary.copy(alpha = 0.12f),
+                                unselectedIconColor = TextSecondary,
+                                unselectedTextColor = TextSecondary
                             ),
                             onClick = {
-                                if (currentRoute != targetRoute) {
+                                if (!isSelected) {
                                     navController.navigate(targetRoute) {
                                         popUpTo("object_dashboard/$currentObjectId") {
                                             saveState = false
@@ -119,9 +148,7 @@ fun AppNavigation(
                     onExportDatabase = {
                         DatabaseBackupHelper.exportDatabase(context, container.database)
                     },
-                    onTogglePrivacy = {
-                        container.userPreferences.togglePrivacyMode()
-                    }
+                    onTogglePrivacy = handleTogglePrivacy
                 )
             }
 
@@ -146,7 +173,7 @@ fun AppNavigation(
                     onNavigateToExpenses = { navController.navigate("object_expenses/$objectId") },
                     onNavigateToIncomes = { navController.navigate("incomes/$objectId") },
                     onNavigateToDailyAttendance = { navController.navigate("batch_attendance/$objectId") },
-                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
+                    onTogglePrivacy = handleTogglePrivacy
                 )
             }
 
@@ -176,7 +203,7 @@ fun AppNavigation(
                     onBatchAttendanceClick = {
                         navController.navigate("batch_attendance/$objectId")
                     },
-                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
+                    onTogglePrivacy = handleTogglePrivacy
                 )
             }
 
@@ -198,7 +225,7 @@ fun AppNavigation(
                             popUpTo("objects") { inclusive = true }
                         }
                     },
-                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
+                    onTogglePrivacy = handleTogglePrivacy
                 )
             }
 
@@ -223,7 +250,7 @@ fun AppNavigation(
                             popUpTo("objects") { inclusive = true }
                         }
                     },
-                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
+                    onTogglePrivacy = handleTogglePrivacy
                 )
             }
 
@@ -241,7 +268,7 @@ fun AppNavigation(
                 IncomesScreen(
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() },
-                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
+                    onTogglePrivacy = handleTogglePrivacy
                 )
             }
 
@@ -273,7 +300,7 @@ fun AppNavigation(
                         val encodedName = Uri.encode(workerName)
                         navController.navigate("worker_payments/$workerId?objectId=$safeObjId&name=$encodedName")
                     },
-                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
+                    onTogglePrivacy = handleTogglePrivacy
                 )
             }
 
@@ -303,7 +330,7 @@ fun AppNavigation(
                     viewModel = viewModel,
                     workerName = workerName,
                     onBack = { navController.popBackStack() },
-                    onTogglePrivacy = { container.userPreferences.togglePrivacyMode() }
+                    onTogglePrivacy = handleTogglePrivacy
                 )
             }
 
