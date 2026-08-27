@@ -293,10 +293,6 @@ fun WorkerDetailScreen(
             onSaveDay = { status, payment, isPaid, note, payerObjId, paymentDate ->
                 viewModel.saveDayRecord(status, payment, isPaid, note, payerObjId, paymentDate)
             },
-            onPayDaySalary = { rec, payerObjId -> viewModel.payForDaySalary(rec, payerObjId) },
-            onMarkDayUnpaid = { rec -> viewModel.markDayAsUnpaid(rec) },
-            onPayBonus = { b, payerObjId -> viewModel.payForBonus(b, payerObjId) },
-            onMarkBonusUnpaid = { b -> viewModel.markBonusAsUnpaid(b) },
             onAddPaymentClick = { viewModel.openAddPayment(uiState.selectedDate) },
             onEditPaymentClick = { p -> viewModel.openEditPayment(p) },
             onDeletePaymentClick = { p -> viewModel.deletePayment(p) },
@@ -534,10 +530,6 @@ fun DayDetailBottomSheet(
     onDismiss: () -> Unit,
     onDeleteDay: ((WorkerDay) -> Unit)?,
     onSaveDay: (status: AttendanceStatus, paymentAmount: Double, isPaid: Boolean, note: String?, payerObjectId: String?, paymentDate: String?) -> Unit,
-    onPayDaySalary: (WorkerDay, payerObjectId: String?) -> Unit,
-    onMarkDayUnpaid: (WorkerDay) -> Unit,
-    onPayBonus: (GeneralBonus, payerObjectId: String?) -> Unit,
-    onMarkBonusUnpaid: (GeneralBonus) -> Unit,
     onAddPaymentClick: () -> Unit,
     onEditPaymentClick: (WorkerPayment) -> Unit,
     onDeletePaymentClick: (WorkerPayment) -> Unit,
@@ -863,16 +855,6 @@ fun DayDetailBottomSheet(
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (isDayUnpaid) {
-                                    IconButton(onClick = { onPayDaySalary(existingRecord, null) }) {
-                                        Icon(imageVector = Icons.Default.CheckCircle, contentDescription = "To'lash", tint = EmeraldSuccess, modifier = Modifier.size(20.dp))
-                                    }
-                                } else if (isDayPaid) {
-                                    IconButton(onClick = { onMarkDayUnpaid(existingRecord) }) {
-                                        Icon(imageVector = Icons.Default.Pending, contentDescription = "Qarz qilish", tint = AmberWarning, modifier = Modifier.size(20.dp))
-                                    }
-                                }
-
                                 IconButton(onClick = { isEditingAttendanceForm = true }) {
                                     Icon(imageVector = Icons.Default.Edit, contentDescription = "Tahrirlash", tint = DeepBluePrimary, modifier = Modifier.size(18.dp))
                                 }
@@ -1064,16 +1046,6 @@ fun DayDetailBottomSheet(
                                         }
 
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            if (!isPaid && bonusItem.rawGeneralBonus != null) {
-                                                IconButton(onClick = { onPayBonus(bonusItem.rawGeneralBonus, null) }) {
-                                                    Icon(imageVector = Icons.Default.CheckCircle, contentDescription = "To'lash", tint = EmeraldSuccess, modifier = Modifier.size(20.dp))
-                                                }
-                                            } else if (isPaid && bonusItem.rawGeneralBonus != null) {
-                                                IconButton(onClick = { onMarkBonusUnpaid(bonusItem.rawGeneralBonus) }) {
-                                                    Icon(imageVector = Icons.Default.Pending, contentDescription = "Qarz qilish", tint = AmberWarning, modifier = Modifier.size(20.dp))
-                                                }
-                                            }
-
                                             IconButton(onClick = {
                                                 if (bonusItem.rawGeneralBonus != null) {
                                                     onEditBonusClick(bonusItem.rawGeneralBonus)
