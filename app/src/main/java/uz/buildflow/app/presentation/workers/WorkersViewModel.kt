@@ -158,12 +158,13 @@ class WorkersViewModel(
                     )
                     transactionRepository.insertWorkerPayment(payment)
 
-                    // 2. Ishchining to'lanmagan ochiq kunlarini eng eski kundan boshlab yopamiz
-                    val unpaidDays = workerDayRepository.getDaysByWorker(workerId).firstOrNull()
-                        ?.filter { it.paymentStatus == PaymentStatus.UNPAID && it.paymentAmount > 0 }
-                        ?.sortedBy { it.date } ?: emptyList()
-
                     var remainingBudget = amount
+
+                    // 2. Ishchining to'lanmagan ochiq kunlarini eng eski kundan boshlab yopamiz
+                    val unpaidDays = workerDayRepository.getDaysByWorker(workerId).first()
+                        .filter { it.paymentStatus == PaymentStatus.UNPAID && it.paymentAmount > 0 }
+                        .sortedBy { it.date }
+
                     for (unpaidDay in unpaidDays) {
                         if (remainingBudget <= 0) break
                         if (remainingBudget >= unpaidDay.paymentAmount) {
@@ -175,8 +176,6 @@ class WorkersViewModel(
                             )
                             remainingBudget -= unpaidDay.paymentAmount
                         } else {
-                            // Qoldiq summa kunlik stavkadan kam bo'lsa, to'lov kassa chiqimiga yozildi,
-                            // ammo kun to'liq yopilmaydi (keyingi safar yopiladi)
                             break
                         }
                     }

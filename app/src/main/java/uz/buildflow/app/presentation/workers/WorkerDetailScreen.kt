@@ -125,13 +125,34 @@ fun WorkerDetailScreen(
                             icon = Icons.Default.CheckCircle,
                             modifier = Modifier.weight(1f)
                         )
-                        MetricCard(
-                            title = "Sof Qarz",
-                            amount = CurrencyFormatter.formatAmountShort(stats?.remainingDebtToWorker ?: 0.0),
-                            accentColor = if ((stats?.remainingDebtToWorker ?: 0.0) > 0) RoseExpense else EmeraldSuccess,
-                            icon = Icons.Default.AccountBalanceWallet,
-                            modifier = Modifier.weight(1f)
-                        )
+                        val debt = stats?.remainingDebtToWorker ?: 0.0
+                        val advance = stats?.workerDebtToUs ?: 0.0
+
+                        if (debt > 0) {
+                            MetricCard(
+                                title = "Bizning qarzimiz",
+                                amount = CurrencyFormatter.formatAmountShort(debt),
+                                accentColor = RoseExpense,
+                                icon = Icons.Default.AccountBalanceWallet,
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else if (advance > 0) {
+                            MetricCard(
+                                title = "Ishchining qarzi",
+                                amount = CurrencyFormatter.formatAmountShort(advance),
+                                accentColor = EmeraldSuccess,
+                                icon = Icons.Default.Savings,
+                                modifier = Modifier.weight(1f)
+                            )
+                        } else {
+                            MetricCard(
+                                title = "Qarz",
+                                amount = "0 so'm",
+                                accentColor = EmeraldSuccess,
+                                icon = Icons.Default.CheckCircle,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
 
                     // 2. To'lovlar Tarixi Tugmasi
@@ -397,10 +418,8 @@ fun CalendarDayCell(
     bonuses: List<GeneralBonus>,
     onClick: () -> Unit
 ) {
-    val hasDirectPayments = payments.any { it.type != PaymentType.BONUS_PAYOUT }
-    val salaryPayment = payments.find { it.type == PaymentType.SALARY && it.amount > 0 }
-    val isDayPaid = record != null && (record.paymentStatus == PaymentStatus.PAID && salaryPayment != null)
-    val isDayUnpaid = record != null && record.status != AttendanceStatus.ABSENT && !isDayPaid
+    val isDayPaid = record != null && record.status != AttendanceStatus.ABSENT && record.paymentStatus == PaymentStatus.PAID
+    val isDayUnpaid = record != null && record.status != AttendanceStatus.ABSENT && record.paymentStatus == PaymentStatus.UNPAID
     val hasBonuses = bonuses.isNotEmpty() || payments.any { it.type == PaymentType.BONUS_PAYOUT }
 
     // Fon rangi
@@ -408,14 +427,13 @@ fun CalendarDayCell(
         isDayPaid -> EmeraldSuccess
         isDayUnpaid -> AmberWarning
         record?.status == AttendanceStatus.ABSENT -> RoseExpense.copy(alpha = 0.85f)
-        hasDirectPayments -> DeepBluePrimary
         hasBonuses -> PurpleBonus
         else -> SurfaceVariantLight.copy(alpha = 0.6f)
     }
 
     // Matn rangi
     val textColor = when {
-        isDayPaid || isDayUnpaid || record?.status == AttendanceStatus.ABSENT || hasDirectPayments || hasBonuses -> Color.White
+        isDayPaid || isDayUnpaid || record?.status == AttendanceStatus.ABSENT || hasBonuses -> Color.White
         dayItem.isToday -> DeepBluePrimary
         else -> TextPrimary
     }
@@ -448,14 +466,9 @@ fun CalendarDayCell(
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                     color = textColor.copy(alpha = 0.9f)
                 )
-            } else if (hasDirectPayments || hasBonuses) {
+            } else if (hasBonuses) {
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    if (hasDirectPayments) {
-                        Box(modifier = Modifier.size(4.dp).background(Color.White, CircleShape))
-                    }
-                    if (hasBonuses) {
-                        Box(modifier = Modifier.size(4.dp).background(AmberWarning, CircleShape))
-                    }
+                    Box(modifier = Modifier.size(4.dp).background(PurpleBonus, CircleShape))
                 }
             }
         }

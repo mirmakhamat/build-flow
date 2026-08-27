@@ -68,6 +68,14 @@ class FinancialCalculationTest {
 
         assertEquals(6_300_000.0, stats.totalEarned, 0.0)
         assertEquals(3_300_000.0, stats.remainingDebtToWorker, 0.0)
+        assertEquals(0.0, stats.workerDebtToUs, 0.0)
+        assertEquals(-3_300_000.0, stats.netBalance, 0.0)
+
+        // Ortiqcha to'langan holat (Avans)
+        val overpaidStats = stats.copy(totalPaid = 7_000_000.0)
+        assertEquals(0.0, overpaidStats.remainingDebtToWorker, 0.0)
+        assertEquals(700_000.0, overpaidStats.workerDebtToUs, 0.0)
+        assertEquals(700_000.0, overpaidStats.netBalance, 0.0)
     }
 
     @Test

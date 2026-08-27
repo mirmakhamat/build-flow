@@ -135,6 +135,79 @@ fun WorkersScreen(
                 .background(BackgroundLight)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
+                // Yuqori Balans Statistikasi Kartochkasi
+                val totalDebtToWorkers = uiState.workers.sumOf { it.stats?.remainingDebtToWorker ?: 0.0 }
+                val totalAdvanceFromWorkers = uiState.workers.sumOf { it.stats?.workerDebtToUs ?: 0.0 }
+                val totalPaidSum = uiState.workers.sumOf { it.stats?.totalPaid ?: 0.0 }
+
+                if (uiState.workers.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Bizning ishchilardan qarzimiz:",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary
+                                )
+                                Text(
+                                    text = CurrencyFormatter.formatAmount(totalDebtToWorkers),
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = if (totalDebtToWorkers > 0) RoseExpense else TextPrimary
+                                )
+                            }
+
+                            if (totalAdvanceFromWorkers > 0) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Ishchilarning qarzi (Ortiqcha avans):",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = TextSecondary
+                                    )
+                                    Text(
+                                        text = CurrencyFormatter.formatAmount(totalAdvanceFromWorkers),
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = EmeraldSuccess
+                                    )
+                                }
+                            }
+
+                            HorizontalDivider(color = BorderColor.copy(alpha = 0.5f))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Jami to'langan ish haqlari:",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted
+                                )
+                                Text(
+                                    text = CurrencyFormatter.formatAmount(totalPaidSum),
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = DeepBluePrimary
+                                )
+                            }
+                        }
+                    }
+                }
+
                 if (uiState.workers.isEmpty() && !uiState.isLoading) {
                     EmptyStateView(
                         title = "Ishchilar mavjud emas",
@@ -246,18 +319,49 @@ fun WorkerCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "To'langan: ${CurrencyFormatter.formatAmountShort(stats?.totalPaid ?: 0.0)}",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = EmeraldSuccess
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMuted
                     )
-                    Text(
-                        text = "Qarz: ${CurrencyFormatter.formatAmountShort(stats?.remainingDebtToWorker ?: 0.0)}",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = if ((stats?.remainingDebtToWorker ?: 0.0) > 0) RoseExpense else TextMuted
-                    )
+
+                    val debt = stats?.remainingDebtToWorker ?: 0.0
+                    val advance = stats?.workerDebtToUs ?: 0.0
+
+                    if (debt > 0) {
+                        Surface(
+                            color = RoseExpense.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "Qarzimiz: ${CurrencyFormatter.formatAmountShort(debt)}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = RoseExpense,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    } else if (advance > 0) {
+                        Surface(
+                            color = EmeraldSuccess.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "Ortiqcha avans: ${CurrencyFormatter.formatAmountShort(advance)}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = EmeraldSuccess,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = "Hisob teng (0)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted
+                        )
+                    }
                 }
             }
 

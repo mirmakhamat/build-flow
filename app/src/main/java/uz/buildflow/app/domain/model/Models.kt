@@ -161,6 +161,12 @@ data class WorkerStats(
     val totalEarned: Double
         get() = totalSalaryEarned + totalDailyBonuses + totalGeneralBonuses
 
+    val netBalance: Double
+        get() = totalPaid - totalEarned
+
     val remainingDebtToWorker: Double
         get() = (totalEarned - totalPaid).coerceAtLeast(0.0)
+
+    val workerDebtToUs: Double
+        get() = (totalPaid - totalEarned).coerceAtLeast(0.0)
 }
