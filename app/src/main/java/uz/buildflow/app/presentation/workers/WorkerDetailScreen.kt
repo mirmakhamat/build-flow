@@ -260,6 +260,7 @@ fun WorkerDetailScreen(
                                 daysList = uiState.days,
                                 paymentsList = uiState.payments,
                                 generalBonuses = uiState.generalBonuses,
+                                stats = uiState.stats,
                                 year = currentYear,
                                 month = currentMonth,
                                 onDayClick = { clickedDateIso ->
@@ -286,6 +287,7 @@ fun WorkerDetailScreen(
             availableObjects = uiState.availableObjects,
             currentObjectId = worker?.objectId ?: "",
             defaultRate = worker?.defaultRate ?: 300000.0,
+            isWorkerFullySettled = (uiState.stats?.remainingDebtToWorker ?: 0.0) == 0.0,
             onDismiss = { viewModel.closeDayEditSheet() },
             onDeleteDay = { rec -> viewModel.deleteDayRecord(rec) },
             onSaveDay = { status, payment, isPaid, note, payerObjId, paymentDate ->
@@ -340,6 +342,7 @@ fun DynamicCalendarSection(
     daysList: List<WorkerDay>,
     paymentsList: List<WorkerPayment>,
     generalBonuses: List<GeneralBonus>,
+    stats: uz.buildflow.app.domain.model.WorkerStats? = null,
     year: Int,
     month: Int,
     onDayClick: (String) -> Unit
@@ -352,14 +355,11 @@ fun DynamicCalendarSection(
         daysList.associateBy { it.date }
     }
 
-    val paymentsMap = remember(paymentsList) {
-        paymentsList.groupBy { it.date }
-    }
-
     val bonusesMap = remember(generalBonuses) {
         generalBonuses.groupBy { it.date }
     }
 
+    val isWorkerFullySettled = (stats?.remainingDebtToWorker ?: 0.0) == 0.0
     val weekDays = listOf("Du", "Se", "Chor", "Pay", "Jum", "Sha", "Yak")
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -394,14 +394,13 @@ fun DynamicCalendarSection(
                     Box(modifier = Modifier.aspectRatio(1f))
                 } else {
                     val record = daysMap[item.dateIso]
-                    val dayPayments = paymentsMap[item.dateIso] ?: emptyList()
                     val dayBonuses = bonusesMap[item.dateIso] ?: emptyList()
 
                     CalendarDayCell(
                         dayItem = item,
                         record = record,
-                        payments = dayPayments,
                         bonuses = dayBonuses,
+                        isWorkerFullySettled = isWorkerFullySettled,
                         onClick = { onDayClick(item.dateIso) }
                     )
                 }
@@ -414,13 +413,15 @@ fun DynamicCalendarSection(
 fun CalendarDayCell(
     dayItem: CalendarDayItem,
     record: WorkerDay?,
-    payments: List<WorkerPayment>,
     bonuses: List<GeneralBonus>,
+    isWorkerFullySettled: Boolean = false,
     onClick: () -> Unit
 ) {
-    val isDayPaid = record != null && record.status != AttendanceStatus.ABSENT && record.paymentStatus == PaymentStatus.PAID
-    val isDayUnpaid = record != null && record.status != AttendanceStatus.ABSENT && record.paymentStatus == PaymentStatus.UNPAID
-    val hasBonuses = bonuses.isNotEmpty() || payments.any { it.type == PaymentType.BONUS_PAYOUT }
+    val isDayPaid = record != null && record.status != AttendanceStatus.ABSENT && (
+        record.paymentStatus == PaymentStatus.PAID || isWorkerFullySettled
+    )
+    val isDayUnpaid = record != null && record.status != AttendanceStatus.ABSENT && !isDayPaid
+    val hasBonuses = bonuses.isNotEmpty()
 
     // Fon rangi
     val backgroundColor = when {
@@ -529,6 +530,7 @@ fun DayDetailBottomSheet(
     availableObjects: List<BuildObject> = emptyList(),
     currentObjectId: String = "",
     defaultRate: Double,
+    isWorkerFullySettled: Boolean = false,
     onDismiss: () -> Unit,
     onDeleteDay: ((WorkerDay) -> Unit)?,
     onSaveDay: (status: AttendanceStatus, paymentAmount: Double, isPaid: Boolean, note: String?, payerObjectId: String?, paymentDate: String?) -> Unit,
@@ -560,8 +562,10 @@ fun DayDetailBottomSheet(
         paymentsOnDay.filter { it.type != PaymentType.BONUS_PAYOUT }
     }
 
-    val isDayPaid = existingRecord != null && existingRecord.status != AttendanceStatus.ABSENT && existingRecord.paymentStatus == PaymentStatus.PAID
-    val isDayUnpaid = existingRecord != null && existingRecord.status != AttendanceStatus.ABSENT && existingRecord.paymentStatus == PaymentStatus.UNPAID
+    val isDayPaid = existingRecord != null && existingRecord.status != AttendanceStatus.ABSENT && (
+        existingRecord.paymentStatus == PaymentStatus.PAID || isWorkerFullySettled
+    )
+    val isDayUnpaid = existingRecord != null && existingRecord.status != AttendanceStatus.ABSENT && !isDayPaid
 
     // 2. BONUSLAR BO'LIMI UCHUN BARCHA BONUSLAR
     val displayBonusItems = remember(bonusesOnDay, paymentsOnDay) {

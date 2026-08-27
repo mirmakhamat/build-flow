@@ -68,6 +68,10 @@ class WorkerDetailViewModel(
             }
         }
 
+        viewModelScope.launch {
+            reconcileUnpaidDays()
+        }
+
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             combine(
@@ -430,6 +434,7 @@ class WorkerDetailViewModel(
             } else if (!isPaid && existing != null) {
                 transactionRepository.deleteWorkerPayment(existing)
             }
+            reconcileUnpaidDays()
             closePaymentSheet()
         }
     }
@@ -437,7 +442,30 @@ class WorkerDetailViewModel(
     fun deletePayment(payment: WorkerPayment) {
         viewModelScope.launch {
             transactionRepository.deleteWorkerPayment(payment)
+            reconcileUnpaidDays()
             closePaymentSheet()
+        }
+    }
+
+    private suspend fun reconcileUnpaidDays() {
+        val payments = transactionRepository.getPaymentsByWorker(workerId).firstOrNull() ?: emptyList()
+        val totalPaid = payments.sumOf { it.amount }
+        val days = workerDayRepository.getDaysByWorker(workerId).firstOrNull()
+            ?.filter { it.status != AttendanceStatus.ABSENT && it.paymentAmount > 0 }
+            ?.sortedBy { it.date } ?: emptyList()
+
+        var budget = totalPaid
+        for (day in days) {
+            if (budget >= day.paymentAmount) {
+                if (day.paymentStatus != PaymentStatus.PAID) {
+                    workerDayRepository.saveWorkerDay(
+                        day.copy(paymentStatus = PaymentStatus.PAID, updatedAt = System.currentTimeMillis())
+                    )
+                }
+                budget -= day.paymentAmount
+            } else {
+                break
+            }
         }
     }
 
