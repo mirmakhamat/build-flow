@@ -406,6 +406,7 @@ fun BreakdownRow(
     amount: Double,
     customColor: Color? = null
 ) {
+    val isPrivacyMode = LocalPrivacyMode.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -413,7 +414,7 @@ fun BreakdownRow(
     ) {
         Text(text = title, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
         Text(
-            text = CurrencyFormatter.formatAmount(amount),
+            text = CurrencyFormatter.formatAmount(amount, isPrivacyMode),
             style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
             color = customColor ?: TextPrimary
         )

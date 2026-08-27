@@ -686,7 +686,7 @@ fun ExpenseDistributionChartCard(
                                 color = TextSecondary
                             )
                             Text(
-                                text = CurrencyFormatter.formatAmount(item.totalAmount),
+                                text = CurrencyFormatter.formatAmount(item.totalAmount, isPrivacyMode),
                                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                                 color = TextPrimary
                             )
@@ -706,6 +706,7 @@ fun ReportDrillDownBottomSheet(
 ) {
     val drillType = uiState.selectedDrillDownType ?: return
     val categoryName = uiState.selectedCategoryName
+    val isPrivacyMode = LocalPrivacyMode.current
     val allObjsMap = remember(uiState.availableObjects) { uiState.availableObjects.associateBy { it.id } }
     val allWorkersMap = remember(uiState.allWorkers) { uiState.allWorkers.associateBy { it.id } }
 
@@ -885,7 +886,7 @@ fun ReportDrillDownBottomSheet(
                                 DrillDownCard(
                                     date = "${ws.workedDaysCount} ish kuni",
                                     mainText = ws.workerName + if (!ws.position.isNullOrBlank()) " (${ws.position})" else "",
-                                    subText = "Ishladi: ${CurrencyFormatter.formatAmountShort(ws.totalEarned)} | To'landi: ${CurrencyFormatter.formatAmountShort(ws.totalPaid)}",
+                                    subText = "Ishladi: ${CurrencyFormatter.formatAmountShort(ws.totalEarned, isPrivacyMode)} | To'landi: ${CurrencyFormatter.formatAmountShort(ws.totalPaid, isPrivacyMode)}",
                                     amount = ws.remainingDebtToWorker,
                                     amountColor = RoseExpense,
                                     badgeText = "Qarz",

@@ -190,6 +190,7 @@ fun BulkPayoutBottomSheet(
 
                             Spacer(modifier = Modifier.width(4.dp))
 
+                            val isPrivacyMode = uz.buildflow.app.core.preferences.LocalPrivacyMode.current
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = state.workerName,
@@ -197,7 +198,7 @@ fun BulkPayoutBottomSheet(
                                     color = TextPrimary
                                 )
                                 Text(
-                                    text = "Qarzdorlik: ${CurrencyFormatter.formatAmount(state.currentDebt)}",
+                                    text = "Qarzdorlik: ${CurrencyFormatter.formatAmount(state.currentDebt, isPrivacyMode)}",
                                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                                     color = if (state.currentDebt > 0) AmberWarning else EmeraldSuccess
                                 )
@@ -304,10 +305,11 @@ fun BulkPayoutBottomSheet(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val isPrivacyMode = uz.buildflow.app.core.preferences.LocalPrivacyMode.current
                     Column {
                         Text(text = "Jami to'lanayotgan summa:", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         Text(
-                            text = CurrencyFormatter.formatAmount(totalPayoutAmount),
+                            text = CurrencyFormatter.formatAmount(totalPayoutAmount, isPrivacyMode),
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                             color = EmeraldSuccess
                         )

@@ -83,19 +83,19 @@ fun WorkerPaymentsScreen(
                 ) {
                     MetricCard(
                         title = "Berilgan Pul",
-                        amount = CurrencyFormatter.formatAmount(stats?.totalPaid ?: 0.0),
+                        amount = CurrencyFormatter.formatAmount(stats?.totalPaid ?: 0.0, isPrivacyMode),
                         accentColor = EmeraldSuccess,
                         modifier = Modifier.weight(1f)
                     )
                     MetricCard(
                         title = "Qarz kunlar",
-                        amount = CurrencyFormatter.formatAmount(stats?.totalUnpaidAccrued ?: 0.0),
+                        amount = CurrencyFormatter.formatAmount(stats?.totalUnpaidAccrued ?: 0.0, isPrivacyMode),
                         accentColor = AmberWarning,
                         modifier = Modifier.weight(1f)
                     )
                     MetricCard(
                         title = "Sof Qarz",
-                        amount = CurrencyFormatter.formatAmount(stats?.remainingDebtToWorker ?: 0.0),
+                        amount = CurrencyFormatter.formatAmount(stats?.remainingDebtToWorker ?: 0.0, isPrivacyMode),
                         accentColor = if ((stats?.remainingDebtToWorker ?: 0.0) > 0) RoseExpense else EmeraldSuccess,
                         modifier = Modifier.weight(1f)
                     )

@@ -178,7 +178,7 @@ fun WorkersScreen(
                                     color = TextSecondary
                                 )
                                 Text(
-                                    text = CurrencyFormatter.formatAmount(totalDebtToWorkers),
+                                    text = CurrencyFormatter.formatAmount(totalDebtToWorkers, isPrivacyMode),
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                     color = if (totalDebtToWorkers > 0) RoseExpense else TextPrimary
                                 )
@@ -195,7 +195,7 @@ fun WorkersScreen(
                                         color = TextSecondary
                                     )
                                     Text(
-                                        text = CurrencyFormatter.formatAmount(totalAdvanceFromWorkers),
+                                        text = CurrencyFormatter.formatAmount(totalAdvanceFromWorkers, isPrivacyMode),
                                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                         color = EmeraldSuccess
                                     )
@@ -223,7 +223,7 @@ fun WorkersScreen(
                                     )
                                 }
                                 Text(
-                                    text = CurrencyFormatter.formatAmount(totalPaidSum),
+                                    text = CurrencyFormatter.formatAmount(totalPaidSum, isPrivacyMode),
                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                     color = EmeraldSuccess
                                 )
@@ -422,6 +422,7 @@ fun ImportWorkerBottomSheet(
     onDismiss: () -> Unit,
     onImportWorkers: (List<Worker>) -> Unit
 ) {
+    val isPrivacyMode = LocalPrivacyMode.current
     var searchQuery by remember { mutableStateOf("") }
     var selectedWorkerIds by remember { mutableStateOf(setOf<String>()) }
 
@@ -571,7 +572,7 @@ fun ImportWorkerBottomSheet(
                                             color = TextPrimary
                                         )
                                         Text(
-                                            text = "${item.worker.position ?: "Ishchi"} · ${CurrencyFormatter.formatAmountShort(item.worker.defaultRate)} / kun",
+                                            text = "${item.worker.position ?: "Ishchi"} · ${CurrencyFormatter.formatAmountShort(item.worker.defaultRate, isPrivacyMode)} / kun",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = TextSecondary
                                         )
