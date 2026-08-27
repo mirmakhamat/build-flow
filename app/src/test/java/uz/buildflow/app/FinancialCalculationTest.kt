@@ -108,4 +108,79 @@ class FinancialCalculationTest {
         assertEquals(2, closedDaysCount)
         assertEquals(50_000.0, remainingBudget, 0.0)
     }
+
+    @Test
+    fun testPartialSalaryAndBonusFifoSettlement() {
+        // Misol: 250k stavka va 100k bonus (Jami 350k kutilmoqda)
+        val day = uz.buildflow.app.domain.model.WorkerDay(
+            id = "d1",
+            workerId = "w1",
+            date = "2026-08-27",
+            status = uz.buildflow.app.domain.model.AttendanceStatus.WORKED,
+            paymentAmount = 250_000.0
+        )
+        val bonus = uz.buildflow.app.domain.model.GeneralBonus(
+            id = "b1",
+            workerId = "w1",
+            objectId = "obj1",
+            amount = 100_000.0,
+            date = "2026-08-27",
+            reason = "Erta bitirgani uchun"
+        )
+
+        // 1. Agar 50k to'lansa:
+        // - Asosiy stavkadan: 50k to'lanadi, 200k qarz qoladi
+        // - Bonusdan: 0k to'lanadi, 100k qarz qoladi
+        // - Jami shu kunda qolgan qarz: 300k
+        val payment50k = listOf(
+            uz.buildflow.app.domain.model.WorkerPayment(id = "p1", workerId = "w1", objectId = "obj1", amount = 50_000.0, date = "2026-08-27")
+        )
+        val (settlementMap50k, _) = uz.buildflow.app.presentation.workers.computeSettlementMap(listOf(day), payment50k, listOf(bonus))
+        val info50k = settlementMap50k["2026-08-27"]!!
+        assertEquals(300_000.0, info50k.totalRemainingDebt, 0.0)
+        assertEquals(200_000.0, info50k.salaryDebt, 0.0)
+        assertEquals(100_000.0, info50k.bonusDebt, 0.0)
+        assertEquals(false, info50k.isFullyPaid)
+
+        // 2. Agar 150k to'lansa:
+        // - Asosiy stavkadan: 150k to'lanadi, 100k qarz qoladi
+        // - Bonusdan: 0k to'lanadi, 100k qarz qoladi
+        // - Jami shu kunda qolgan qarz: 200k
+        val payment150k = listOf(
+            uz.buildflow.app.domain.model.WorkerPayment(id = "p2", workerId = "w1", objectId = "obj1", amount = 150_000.0, date = "2026-08-27")
+        )
+        val (settlementMap150k, _) = uz.buildflow.app.presentation.workers.computeSettlementMap(listOf(day), payment150k, listOf(bonus))
+        val info150k = settlementMap150k["2026-08-27"]!!
+        assertEquals(200_000.0, info150k.totalRemainingDebt, 0.0)
+        assertEquals(100_000.0, info150k.salaryDebt, 0.0)
+        assertEquals(100_000.0, info150k.bonusDebt, 0.0)
+        assertEquals(false, info150k.isFullyPaid)
+
+        // 3. Agar 250k to'lansa:
+        // - Asosiy stavka to'liq yopiladi (0 qarz)
+        // - Bonusdan 100k qarz qoladi
+        // - Jami shu kunda qolgan qarz: 100k
+        val payment250k = listOf(
+            uz.buildflow.app.domain.model.WorkerPayment(id = "p3", workerId = "w1", objectId = "obj1", amount = 250_000.0, date = "2026-08-27")
+        )
+        val (settlementMap250k, _) = uz.buildflow.app.presentation.workers.computeSettlementMap(listOf(day), payment250k, listOf(bonus))
+        val info250k = settlementMap250k["2026-08-27"]!!
+        assertEquals(100_000.0, info250k.totalRemainingDebt, 0.0)
+        assertEquals(0.0, info250k.salaryDebt, 0.0)
+        assertEquals(100_000.0, info250k.bonusDebt, 0.0)
+        assertEquals(false, info250k.isFullyPaid)
+
+        // 4. Agar 350k to'lansa:
+        // - Barchasi to'liq yopiladi (0 qarz) -> isFullyPaid = true
+        val payment350k = listOf(
+            uz.buildflow.app.domain.model.WorkerPayment(id = "p4", workerId = "w1", objectId = "obj1", amount = 350_000.0, date = "2026-08-27")
+        )
+        val (settlementMap350k, _) = uz.buildflow.app.presentation.workers.computeSettlementMap(listOf(day), payment350k, listOf(bonus))
+        val info350k = settlementMap350k["2026-08-27"]!!
+        assertEquals(0.0, info350k.totalRemainingDebt, 0.0)
+        assertEquals(0.0, info350k.salaryDebt, 0.0)
+        assertEquals(0.0, info350k.bonusDebt, 0.0)
+        assertEquals(true, info350k.isFullyPaid)
+    }
 }
+

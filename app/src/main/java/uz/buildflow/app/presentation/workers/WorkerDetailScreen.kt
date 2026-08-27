@@ -44,6 +44,11 @@ fun WorkerDetailScreen(
     val worker = uiState.worker
     val stats = uiState.stats
 
+    // FIFO Hisob-kitobi: Har bir kun va bonus uchun to'langan/qolgan qarz summasi
+    val (settlementMap, bonusPaidMap) = remember(uiState.days, uiState.payments, uiState.generalBonuses) {
+        computeSettlementMap(uiState.days, uiState.payments, uiState.generalBonuses)
+    }
+
     var currentYear by remember { mutableStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)) }
     var currentMonth by remember { mutableStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1) }
 
@@ -275,8 +280,8 @@ fun WorkerDetailScreen(
                             // Dinamik interaktiv kalendar kataklari
                             DynamicCalendarSection(
                                 daysList = uiState.days,
-                                paymentsList = uiState.payments,
                                 generalBonuses = uiState.generalBonuses,
+                                settlementMap = settlementMap,
                                 year = currentYear,
                                 month = currentMonth,
                                 onDayClick = { clickedDateIso ->
@@ -293,51 +298,17 @@ fun WorkerDetailScreen(
         }
     }
 
-    // Yagona FIFO Navbati: Ham kunlik stavkalar, ham bonuslar sana bo'yicha ketma-ket qoplanadi
-    val (coveredDaysSet, coveredBonusIdsSet) = remember(uiState.days, uiState.payments, uiState.generalBonuses) {
-        val totalPaid = uiState.payments.sumOf { it.amount }
-        val accruals = mutableListOf<UnifiedAccrual>()
-
-        uiState.days
-            .filter { it.status != AttendanceStatus.ABSENT && it.paymentAmount > 0 }
-            .forEach { accruals.add(UnifiedAccrual(id = it.id, date = it.date, amount = it.paymentAmount, isBonus = false)) }
-
-        uiState.generalBonuses
-            .filter { it.amount > 0 }
-            .forEach { accruals.add(UnifiedAccrual(id = it.id, date = it.date, amount = it.amount, isBonus = true)) }
-
-        accruals.sortBy { it.date }
-
-        val paidDays = mutableSetOf<String>()
-        val paidBonuses = mutableSetOf<String>()
-
-        var budget = totalPaid
-        for (item in accruals) {
-            if (budget >= item.amount) {
-                if (item.isBonus) {
-                    paidBonuses.add(item.id)
-                } else {
-                    paidDays.add(item.date)
-                }
-                budget -= item.amount
-            } else {
-                break
-            }
-        }
-        Pair(paidDays, paidBonuses)
-    }
-
     // Kunlik Davomat va Bonuslar Modal Sheet
     if (uiState.isDayEditSheetOpen && uiState.selectedDate != null) {
         val targetDate = uiState.selectedDate!!
-        val isDayCovered = coveredDaysSet.contains(targetDate)
+        val daySettlement = settlementMap[targetDate]
 
         DayDetailBottomSheet(
             date = targetDate,
             existingRecord = uiState.selectedDayRecord,
             bonusesOnDay = uiState.selectedDateBonuses,
-            isDayPaid = isDayCovered,
-            paidBonusIds = coveredBonusIdsSet,
+            daySettlement = daySettlement,
+            bonusPaidMap = bonusPaidMap,
             defaultRate = worker?.defaultRate ?: 300000.0,
             onDismiss = { viewModel.closeDayEditSheet() },
             onDeleteDay = { rec -> viewModel.deleteDayRecord(rec) },
@@ -379,11 +350,108 @@ fun WorkerDetailScreen(
     }
 }
 
+data class DaySettlementInfo(
+    val dateIso: String,
+    val salaryAccrued: Double,
+    val salaryPaid: Double,
+    val salaryDebt: Double,
+    val bonusAccrued: Double,
+    val bonusPaid: Double,
+    val bonusDebt: Double,
+    val totalAccrued: Double,
+    val totalPaid: Double,
+    val totalRemainingDebt: Double,
+    val isFullyPaid: Boolean
+)
+
+sealed class UnifiedFIFOItem(val date: String, val amount: Double, val priority: Int) {
+    class DaySalaryItem(val day: WorkerDay) : UnifiedFIFOItem(day.date, day.paymentAmount, 0)
+    class BonusItem(val bonus: GeneralBonus) : UnifiedFIFOItem(bonus.date, bonus.amount, 1)
+}
+
+fun computeSettlementMap(
+    daysList: List<WorkerDay>,
+    paymentsList: List<WorkerPayment>,
+    generalBonuses: List<GeneralBonus>
+): Pair<Map<String, DaySettlementInfo>, Map<String, Double>> {
+    val totalPaid = paymentsList.sumOf { it.amount }
+
+    val items = mutableListOf<UnifiedFIFOItem>()
+    daysList.filter { it.status != AttendanceStatus.ABSENT && it.paymentAmount > 0 }.forEach {
+        items.add(UnifiedFIFOItem.DaySalaryItem(it))
+    }
+    generalBonuses.filter { it.amount > 0 }.forEach {
+        items.add(UnifiedFIFOItem.BonusItem(it))
+    }
+
+    // Bir xil sanada: Avval kunlik asosiy maosh (priority 0), keyin bonuslar (priority 1) qoplanadi!
+    items.sortWith(compareBy<UnifiedFIFOItem> { it.date }.thenBy { it.priority })
+
+    var budget = totalPaid
+    val daySalaryPaidMap = mutableMapOf<String, Double>() // dayId -> paidAmount
+    val bonusPaidMap = mutableMapOf<String, Double>()     // bonusId -> paidAmount
+
+    for (item in items) {
+        if (budget <= 0.0) break
+        val pay = minOf(budget, item.amount)
+        when (item) {
+            is UnifiedFIFOItem.DaySalaryItem -> {
+                daySalaryPaidMap[item.day.id] = pay
+            }
+            is UnifiedFIFOItem.BonusItem -> {
+                bonusPaidMap[item.bonus.id] = pay
+            }
+        }
+        budget -= pay
+    }
+
+    val daysByDate = daysList.associateBy { it.date }
+    val bonusesByDate = generalBonuses.groupBy { it.date }
+
+    val allDates = (daysByDate.keys + bonusesByDate.keys).toSet()
+    val settlementMap = mutableMapOf<String, DaySettlementInfo>()
+
+    for (date in allDates) {
+        val dayRec = daysByDate[date]
+        val bonuses = bonusesByDate[date] ?: emptyList()
+
+        val salaryAccrued = if (dayRec != null && dayRec.status != AttendanceStatus.ABSENT) dayRec.paymentAmount else 0.0
+        val salaryPaid = if (dayRec != null) (daySalaryPaidMap[dayRec.id] ?: 0.0) else 0.0
+        val salaryDebt = (salaryAccrued - salaryPaid).coerceAtLeast(0.0)
+
+        val bonusAccrued = bonuses.sumOf { it.amount }
+        val bonusPaid = bonuses.sumOf { bonusPaidMap[it.id] ?: 0.0 }
+        val bonusDebt = (bonusAccrued - bonusPaid).coerceAtLeast(0.0)
+
+        val totalAccrued = salaryAccrued + bonusAccrued
+        val totalDayPaid = salaryPaid + bonusPaid
+        val totalDebt = (totalAccrued - totalDayPaid).coerceAtLeast(0.0)
+
+        val isFullyPaid = totalAccrued > 0 && totalDebt == 0.0
+
+        settlementMap[date] = DaySettlementInfo(
+            dateIso = date,
+            salaryAccrued = salaryAccrued,
+            salaryPaid = salaryPaid,
+            salaryDebt = salaryDebt,
+            bonusAccrued = bonusAccrued,
+            bonusPaid = bonusPaid,
+            bonusDebt = bonusDebt,
+            totalAccrued = totalAccrued,
+            totalPaid = totalDayPaid,
+            totalRemainingDebt = totalDebt,
+            isFullyPaid = isFullyPaid
+        )
+    }
+
+    return Pair(settlementMap, bonusPaidMap)
+}
+
 @Composable
 fun DynamicCalendarSection(
     daysList: List<WorkerDay>,
-    paymentsList: List<WorkerPayment>,
     generalBonuses: List<GeneralBonus>,
+    settlementMap: Map<String, DaySettlementInfo>,
     year: Int,
     month: Int,
     onDayClick: (String) -> Unit
@@ -398,26 +466,6 @@ fun DynamicCalendarSection(
 
     val bonusesMap = remember(generalBonuses) {
         generalBonuses.groupBy { it.date }
-    }
-
-    // FIFO qoplanish mantiqi: eng eski kundan boshlab to'lovlar bilan qoplanishini tekshiramiz
-    val paidDaysSet = remember(daysList, paymentsList) {
-        val totalPaid = paymentsList.sumOf { it.amount }
-        val workedDays = daysList
-            .filter { it.status != AttendanceStatus.ABSENT && it.paymentAmount > 0 }
-            .sortedBy { it.date }
-
-        val set = mutableSetOf<String>()
-        var budget = totalPaid
-        for (day in workedDays) {
-            if (budget >= day.paymentAmount) {
-                set.add(day.date)
-                budget -= day.paymentAmount
-            } else {
-                break
-            }
-        }
-        set
     }
 
     val weekDays = listOf("Du", "Se", "Chor", "Pay", "Jum", "Sha", "Yak")
@@ -455,13 +503,13 @@ fun DynamicCalendarSection(
                 } else {
                     val record = daysMap[item.dateIso]
                     val dayBonuses = bonusesMap[item.dateIso] ?: emptyList()
-                    val isDayPaid = paidDaysSet.contains(item.dateIso)
+                    val daySettlement = settlementMap[item.dateIso]
 
                     CalendarDayCell(
                         dayItem = item,
                         record = record,
                         bonuses = dayBonuses,
-                        isDayPaid = isDayPaid,
+                        settlementInfo = daySettlement,
                         onClick = { onDayClick(item.dateIso) }
                     )
                 }
@@ -475,24 +523,32 @@ fun CalendarDayCell(
     dayItem: CalendarDayItem,
     record: WorkerDay?,
     bonuses: List<GeneralBonus>,
-    isDayPaid: Boolean = false,
+    settlementInfo: DaySettlementInfo?,
     onClick: () -> Unit
 ) {
-    val isDayUnpaid = record != null && record.status != AttendanceStatus.ABSENT && !isDayPaid
-    val hasBonuses = bonuses.isNotEmpty()
+    val totalAccrued = settlementInfo?.totalAccrued ?: 0.0
+    val totalDebt = settlementInfo?.totalRemainingDebt ?: 0.0
+    val isFullyPaid = settlementInfo?.isFullyPaid ?: false
 
-    // Fon rangi
+    val isAbsent = record?.status == AttendanceStatus.ABSENT
+    val hasAccrual = totalAccrued > 0.0
+
+    // Fon rangi:
+    // 1. Kelmadi (va bonus ham yo'q) -> Qizil
+    // 2. Ishladi/bonus bor va to'liq to'langan -> Yashil
+    // 3. Ishladi/bonus bor va qisman yoki to'lanmagan -> Sariq
+    // 4. Boshqa -> Neytral kulrang
     val backgroundColor = when {
-        record?.status == AttendanceStatus.ABSENT -> RoseExpense.copy(alpha = 0.85f)
-        isDayPaid -> EmeraldSuccess
-        isDayUnpaid -> AmberWarning
-        hasBonuses -> PurpleBonus
+        isAbsent && totalAccrued == 0.0 -> RoseExpense.copy(alpha = 0.85f)
+        hasAccrual && isFullyPaid -> EmeraldSuccess
+        hasAccrual && !isFullyPaid -> AmberWarning
+        bonuses.isNotEmpty() -> PurpleBonus
         else -> SurfaceVariantLight.copy(alpha = 0.6f)
     }
 
     // Matn rangi
     val textColor = when {
-        isDayPaid || isDayUnpaid || record?.status == AttendanceStatus.ABSENT || hasBonuses -> Color.White
+        isAbsent || hasAccrual || bonuses.isNotEmpty() -> Color.White
         dayItem.isToday -> DeepBluePrimary
         else -> TextPrimary
     }
@@ -518,16 +574,15 @@ fun CalendarDayCell(
                 color = textColor
             )
 
-            if (record != null && record.status != AttendanceStatus.ABSENT) {
+            if (hasAccrual) {
+                // Agar qarz bo'lsa -> Aynan qolgan QARZ summasi (masalan: 300k, 200k, 100k) chiqadi!
+                // Agar to'liq to'langan bo'lsa -> Jami ishlab topilgan summa chiqadi!
+                val displayAmount = if (isFullyPaid) totalAccrued else totalDebt
                 Text(
-                    text = CurrencyFormatter.formatAmountShort(record.paymentAmount),
+                    text = CurrencyFormatter.formatAmountShort(displayAmount),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                    color = textColor.copy(alpha = 0.9f)
+                    color = textColor.copy(alpha = 0.95f)
                 )
-            } else if (hasBonuses) {
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Box(modifier = Modifier.size(4.dp).background(PurpleBonus, CircleShape))
-                }
             }
         }
     }
@@ -566,16 +621,11 @@ fun LegendItem(color: Color, label: String) {
     }
 }
 
-data class UnifiedAccrual(
-    val id: String,
-    val date: String,
-    val amount: Double,
-    val isBonus: Boolean
-)
-
 data class DisplayBonusItem(
     val id: String,
     val amount: Double,
+    val paidAmount: Double,
+    val remainingDebt: Double,
     val date: String,
     val reason: String?,
     val isPaid: Boolean,
@@ -588,8 +638,8 @@ fun DayDetailBottomSheet(
     date: String,
     existingRecord: WorkerDay?,
     bonusesOnDay: List<GeneralBonus>,
-    isDayPaid: Boolean = false,
-    paidBonusIds: Set<String> = emptySet(),
+    daySettlement: DaySettlementInfo?,
+    bonusPaidMap: Map<String, Double> = emptyMap(),
     defaultRate: Double,
     onDismiss: () -> Unit,
     onDeleteDay: ((WorkerDay) -> Unit)?,
@@ -607,14 +657,18 @@ fun DayDetailBottomSheet(
     }
     var note by remember(existingRecord) { mutableStateOf(existingRecord?.note ?: "") }
 
-    val displayBonusItems = remember(bonusesOnDay, paidBonusIds) {
+    val displayBonusItems = remember(bonusesOnDay, bonusPaidMap) {
         bonusesOnDay.map { gb ->
+            val paid = bonusPaidMap[gb.id] ?: 0.0
+            val debt = (gb.amount - paid).coerceAtLeast(0.0)
             DisplayBonusItem(
                 id = gb.id,
                 amount = gb.amount,
+                paidAmount = paid,
+                remainingDebt = debt,
                 date = gb.date,
                 reason = gb.reason,
-                isPaid = paidBonusIds.contains(gb.id),
+                isPaid = debt == 0.0 && gb.amount > 0,
                 rawGeneralBonus = gb
             )
         }
@@ -737,15 +791,18 @@ fun DayDetailBottomSheet(
             } else {
                 // DAVOMAT KARTOCHKASI (Mavjud bo'lsa)
                 if (existingRecord != null) {
-                    val isUnpaid = existingRecord.status != AttendanceStatus.ABSENT && !isDayPaid
+                    val salaryDebt = daySettlement?.salaryDebt ?: existingRecord.paymentAmount
+                    val salaryPaid = daySettlement?.salaryPaid ?: 0.0
+                    val isSalaryPaid = existingRecord.status == AttendanceStatus.ABSENT || salaryDebt == 0.0
+
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (isUnpaid) AmberLight.copy(alpha = 0.4f) else SurfaceLight
+                            containerColor = if (!isSalaryPaid) AmberLight.copy(alpha = 0.4f) else SurfaceLight
                         ),
                         border = CardDefaults.outlinedCardBorder().copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(if (isUnpaid) AmberWarning.copy(alpha = 0.5f) else BorderColor)
+                            brush = androidx.compose.ui.graphics.SolidColor(if (!isSalaryPaid) AmberWarning.copy(alpha = 0.5f) else BorderColor)
                         )
                     ) {
                         Row(
@@ -771,8 +828,10 @@ fun DayDetailBottomSheet(
                                         color = TextPrimary
                                     )
                                     if (existingRecord.status != AttendanceStatus.ABSENT) {
-                                        if (isDayPaid) {
+                                        if (salaryDebt == 0.0) {
                                             Text(text = "To'langan", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = EmeraldSuccess)
+                                        } else if (salaryPaid > 0.0) {
+                                            Text(text = "Qarz (${CurrencyFormatter.formatAmountShort(salaryDebt)} qoldi)", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = AmberWarning)
                                         } else {
                                             Text(text = "Qarz", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = AmberWarning)
                                         }
@@ -783,6 +842,13 @@ fun DayDetailBottomSheet(
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = DeepBluePrimary
                                 )
+                                if (salaryPaid > 0.0 && salaryDebt > 0.0) {
+                                    Text(
+                                        text = "To'langan: ${CurrencyFormatter.formatAmount(salaryPaid)} | Qolgan qarz: ${CurrencyFormatter.formatAmount(salaryDebt)}",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = AmberWarning
+                                    )
+                                }
                                 if (!existingRecord.note.isNullOrBlank()) {
                                     Text(text = existingRecord.note, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                                 }
@@ -885,6 +951,12 @@ fun DayDetailBottomSheet(
                                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                                     color = EmeraldSuccess
                                                 )
+                                            } else if (bonusItem.paidAmount > 0.0) {
+                                                Text(
+                                                    text = "Qarz (${CurrencyFormatter.formatAmountShort(bonusItem.remainingDebt)} qoldi)",
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                    color = AmberWarning
+                                                )
                                             } else {
                                                 Text(
                                                     text = "Qarz",
@@ -892,6 +964,13 @@ fun DayDetailBottomSheet(
                                                     color = AmberWarning
                                                 )
                                             }
+                                        }
+                                        if (bonusItem.paidAmount > 0.0 && bonusItem.remainingDebt > 0.0) {
+                                            Text(
+                                                text = "To'langan: ${CurrencyFormatter.formatAmount(bonusItem.paidAmount)} | Qolgan qarz: ${CurrencyFormatter.formatAmount(bonusItem.remainingDebt)}",
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                                color = AmberWarning
+                                            )
                                         }
                                         if (!bonusItem.reason.isNullOrBlank()) {
                                             Text(text = bonusItem.reason, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
