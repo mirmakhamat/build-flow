@@ -238,12 +238,30 @@ fun ExpenseItemCard(
                         style = MaterialTheme.typography.labelMedium,
                         color = TextMuted
                     )
-                    if (expense.payerObjectId != null && expense.payerObjectId != expense.objectId) {
-                        Text(
-                            text = "Boshqa obyekt pulidan",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = DeepBluePrimary
-                        )
+                    if (expense.payerObjectId == "OWN_POCKET") {
+                        Surface(
+                            color = AmberLight.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "👤 O'z hisobimdan",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = AmberWarning,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    } else if (expense.payerObjectId != null && expense.payerObjectId != expense.objectId) {
+                        Surface(
+                            color = DeepBlueLight.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "Boshqa obyekt pulidan",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = DeepBluePrimary,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
             }

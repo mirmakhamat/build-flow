@@ -37,15 +37,26 @@ class GetObjectFinancialSummaryUseCase(
 
         val flow3 = combine(
             transactionRepository.getTotalPaidByOtherObjectsForThisWorkers(objectId),
+            transactionRepository.getTotalPaidFromOwnPocketForThisWorkers(objectId),
             expenseRepository.getTotalBuildingExpenseByObject(objectId),
             expenseRepository.getTotalTransfersOutByObject(objectId),
-            expenseRepository.getTotalCashExpensePaidByObject(objectId),
             combine(
+                expenseRepository.getTotalCashExpensePaidByObject(objectId),
                 expenseRepository.getTotalExpensesPaidForOtherObjects(objectId),
-                expenseRepository.getTotalExpensesPaidByOtherObjects(objectId)
-            ) { forOther, byOther -> forOther to byOther }
-        ) { paidByOtherForWorkers, buildingExpenses, transfersOut, paidOtherExpenses, (expensesForOther, expensesByOther) ->
-            SummaryPart3(paidByOtherForWorkers, buildingExpenses, transfersOut, paidOtherExpenses, expensesForOther, expensesByOther)
+                expenseRepository.getTotalExpensesPaidByOtherObjects(objectId),
+                expenseRepository.getTotalExpensesPaidFromOwnPocket(objectId)
+            ) { cashExp, forOther, byOther, ownExp -> Tuple4(cashExp, forOther, byOther, ownExp) }
+        ) { paidByOtherForWorkers, paidFromOwnForWorkers, buildingExpenses, transfersOut, (cashExp, expensesForOther, expensesByOther, expensesFromOwn) ->
+            SummaryPart3(
+                paidByOtherForWorkers,
+                paidFromOwnForWorkers,
+                buildingExpenses,
+                transfersOut,
+                cashExp,
+                expensesForOther,
+                expensesByOther,
+                expensesFromOwn
+            )
         }
 
         val flow4 = combine(
@@ -73,17 +84,21 @@ class GetObjectFinancialSummaryUseCase(
                 totalCashPaidToWorkers = p2.cashPaidWorkers,
                 totalPaidForOtherObjectsWorkers = p2.paidForOtherWorkers,
                 totalPaidByOtherObjectsForThisWorkers = p3.paidByOtherForWorkers,
+                totalPaidFromOwnPocketForThisWorkers = p3.paidFromOwnForWorkers,
                 totalOtherExpenses = p3.buildingExpenses,
                 totalTransfersOut = p3.transfersOut,
                 totalPaidOtherExpenses = p3.paidOtherExpenses,
                 totalExpensesPaidForOtherObjects = p3.expensesForOther,
                 totalExpensesPaidByOtherObjects = p3.expensesByOther,
+                totalExpensesPaidFromOwnPocket = p3.expensesFromOwn,
                 categoryBreakdowns = p4.categories.filter { it.categoryName != "Kassalararo o'tkazma" },
                 totalWorkerCount = p4.workerCount,
                 totalWorkDaysCount = p4.workDaysCount
             )
         }
     }
+
+    private data class Tuple4<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
     private data class SummaryPart1(
         val obj: BuildObject?,
@@ -103,11 +118,13 @@ class GetObjectFinancialSummaryUseCase(
 
     private data class SummaryPart3(
         val paidByOtherForWorkers: Double,
+        val paidFromOwnForWorkers: Double,
         val buildingExpenses: Double,
         val transfersOut: Double,
         val paidOtherExpenses: Double,
         val expensesForOther: Double,
-        val expensesByOther: Double
+        val expensesByOther: Double,
+        val expensesFromOwn: Double
     )
 
     private data class SummaryPart4(

@@ -103,11 +103,15 @@ fun AddExpenseSheet(
                 label = "Xarajat sanasi"
             )
 
-            // KROSS-OBYEKT: Qaysi obyekt kassasidan to'lanadi?
+            // KROSS-OBYEKT VA SHAXSIY CHO'NTAK: Qaysi manbadan to'lanadi?
             if (availableObjects.isNotEmpty()) {
                 val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
                 val currentObj = availableObjects.find { it.id == currentObjectId }
-                val displayName = selectedObj?.name ?: "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"
+                val displayName = when (selectedPayerObjectId) {
+                    "OWN_POCKET" -> "👤 O'zimning hisobimdan (Shaxsiy cho'ntak)"
+                    null -> "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"
+                    else -> "${selectedObj?.name} kassasidan"
+                }
 
                 ExposedDropdownMenuBox(
                     expanded = isObjectMenuExpanded,
@@ -117,7 +121,7 @@ fun AddExpenseSheet(
                         value = displayName,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("To'lov manbasi (Obyekt kassasi)") },
+                        label = { Text("To'lov manbasi (Kassa)") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isObjectMenuExpanded) },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -133,6 +137,13 @@ fun AddExpenseSheet(
                             text = { Text("${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)") },
                             onClick = {
                                 selectedPayerObjectId = null
+                                isObjectMenuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("👤 O'zimning hisobimdan (Shaxsiy cho'ntak)") },
+                            onClick = {
+                                selectedPayerObjectId = "OWN_POCKET"
                                 isObjectMenuExpanded = false
                             }
                         )

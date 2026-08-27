@@ -145,6 +145,9 @@ class ExpenseRepositoryImpl(private val expenseDao: ExpenseDao) : ExpenseReposit
     override fun getTotalExpensesPaidByOtherObjects(objectId: String): Flow<Double> =
         expenseDao.getTotalExpensesPaidByOtherObjects(objectId)
 
+    override fun getTotalExpensesPaidFromOwnPocket(objectId: String): Flow<Double> =
+        expenseDao.getTotalExpensesPaidFromOwnPocket(objectId)
+
     override fun getExpenseSumByCategory(objectId: String, category: String): Flow<Double> =
         expenseDao.getExpenseSumByCategory(objectId, category)
 
@@ -211,6 +214,9 @@ class TransactionRepositoryImpl(
 
     override fun getPaymentsPaidByOtherObjectsForThisWorkers(objectId: String): Flow<List<WorkerPayment>> =
         workerPaymentDao.getPaymentsPaidByOtherObjectsForThisWorkers(objectId).map { list -> list.map { it.toDomain() } }
+
+    override fun getTotalPaidFromOwnPocketForThisWorkers(objectId: String): Flow<Double> =
+        workerPaymentDao.getTotalPaidFromOwnPocketForThisWorkers(objectId)
 
     override suspend fun insertWorkerPayment(payment: WorkerPayment) =
         workerPaymentDao.insertPayment(payment.toEntity())

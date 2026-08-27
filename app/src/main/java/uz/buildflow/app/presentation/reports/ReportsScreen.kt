@@ -172,6 +172,15 @@ fun ReportsScreen(
                                 customColor = EmeraldSuccess,
                                 onClick = { viewModel.openDrillDown(DrillDownType.WORKER_PAYMENTS) }
                             )
+
+                            if ((summary?.totalPaidFromOwnPocketForThisWorkers ?: 0.0) > 0) {
+                                InteractiveBreakdownRow(
+                                    title = "  ↳ 👤 O'z hisobidan to'langan ish haqi",
+                                    amount = summary?.totalPaidFromOwnPocketForThisWorkers ?: 0.0,
+                                    customColor = AmberWarning,
+                                    onClick = { viewModel.openDrillDown(DrillDownType.WORKER_PAYMENTS) }
+                                )
+                            }
                             
                             if ((summary?.totalPaidByOtherObjectsForThisWorkers ?: 0.0) > 0) {
                                 InteractiveBreakdownRow(
@@ -222,6 +231,15 @@ fun ReportsScreen(
                                 }
                             }
 
+                            if ((summary?.totalExpensesPaidFromOwnPocket ?: 0.0) > 0) {
+                                InteractiveBreakdownRow(
+                                    title = "  ↳ 👤 O'z hisobidan to'langan xarajat",
+                                    amount = summary?.totalExpensesPaidFromOwnPocket ?: 0.0,
+                                    customColor = AmberWarning,
+                                    onClick = { viewModel.openDrillDown(DrillDownType.ALL_EXPENSES) }
+                                )
+                            }
+
                             if ((summary?.totalExpensesPaidByOtherObjects ?: 0.0) > 0) {
                                 InteractiveBreakdownRow(
                                     title = "  ↳ Boshqa obyekt hisobidan to'langan xarajat",
@@ -250,6 +268,14 @@ fun ReportsScreen(
                                 isBold = true,
                                 onClick = { viewModel.openDrillDown(DrillDownType.ALL_EXPENSES) }
                             )
+                            if ((summary?.totalPaidFromOwnPocket ?: 0.0) > 0) {
+                                InteractiveBreakdownRow(
+                                    title = "👤 Jami O'z hisobidan qoplangan summa",
+                                    amount = summary?.totalPaidFromOwnPocket ?: 0.0,
+                                    customColor = AmberWarning,
+                                    isBold = true
+                                )
+                            }
                             InteractiveBreakdownRow(
                                 title = "Kassadan chiqqan jami pul (Chiqim)",
                                 amount = summary?.totalCashOutflow ?: 0.0,
@@ -748,7 +774,8 @@ fun ReportDrillDownBottomSheet(
                             items(list, key = { it.id }) { wp ->
                                 val worker = allWorkersMap[wp.workerId]
                                 val workerName = worker?.name ?: "Noma'lum ishchi"
-                                val isOtherPayer = wp.payerObjectId != null && wp.payerObjectId != wp.objectId
+                                val isOwnPocket = wp.payerObjectId == "OWN_POCKET"
+                                val isOtherPayer = wp.payerObjectId != null && wp.payerObjectId != wp.objectId && !isOwnPocket
                                 val payerObjName = allObjsMap[wp.payerObjectId]?.name ?: "Boshqa obyekt"
 
                                 val dateText = if (!wp.paymentDate.isNullOrBlank() && wp.paymentDate != wp.date) {
@@ -763,8 +790,12 @@ fun ReportDrillDownBottomSheet(
                                     subText = if (!wp.description.isNullOrBlank()) "${wp.type.name}: ${wp.description}" else wp.type.name,
                                     amount = wp.amount,
                                     amountColor = EmeraldSuccess,
-                                    badgeText = if (isOtherPayer) "$payerObjName hisobidan" else null,
-                                    badgeColor = DeepBluePrimary
+                                    badgeText = when {
+                                        isOwnPocket -> "👤 O'z hisobidan"
+                                        isOtherPayer -> "$payerObjName hisobidan"
+                                        else -> null
+                                    },
+                                    badgeColor = if (isOwnPocket) AmberWarning else DeepBluePrimary
                                 )
                             }
                         }
@@ -861,7 +892,8 @@ fun ReportDrillDownBottomSheet(
                     } else {
                         LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(list, key = { it.id }) { exp ->
-                                val isOtherPayer = exp.payerObjectId != null && exp.payerObjectId != exp.objectId
+                                val isOwnPocket = exp.payerObjectId == "OWN_POCKET"
+                                val isOtherPayer = exp.payerObjectId != null && exp.payerObjectId != exp.objectId && !isOwnPocket
                                 val payerObjName = allObjsMap[exp.payerObjectId]?.name ?: "Boshqa obyekt"
                                 DrillDownCard(
                                     date = exp.date,
@@ -869,8 +901,12 @@ fun ReportDrillDownBottomSheet(
                                     subText = "Kategoriya: ${exp.category}",
                                     amount = exp.amount,
                                     amountColor = RoseExpense,
-                                    badgeText = if (isOtherPayer) "$payerObjName hisobidan" else null,
-                                    badgeColor = DeepBluePrimary
+                                    badgeText = when {
+                                        isOwnPocket -> "👤 O'z hisobidan"
+                                        isOtherPayer -> "$payerObjName hisobidan"
+                                        else -> null
+                                    },
+                                    badgeColor = if (isOwnPocket) AmberWarning else DeepBluePrimary
                                 )
                             }
                         }
@@ -884,7 +920,8 @@ fun ReportDrillDownBottomSheet(
                     } else {
                         LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(list, key = { it.id }) { exp ->
-                                val isOtherPayer = exp.payerObjectId != null && exp.payerObjectId != exp.objectId
+                                val isOwnPocket = exp.payerObjectId == "OWN_POCKET"
+                                val isOtherPayer = exp.payerObjectId != null && exp.payerObjectId != exp.objectId && !isOwnPocket
                                 val isTransfer = exp.category == "Kassalararo o'tkazma"
                                 val payerObjName = allObjsMap[exp.payerObjectId]?.name ?: "Boshqa obyekt"
 
@@ -893,13 +930,18 @@ fun ReportDrillDownBottomSheet(
                                     mainText = exp.description ?: exp.category,
                                     subText = "Kategoriya: ${exp.category}",
                                     amount = exp.amount,
-                                    amountColor = RoseExpense,
+                                    amountColor = if (isTransfer) Color(0xFF8B5CF6) else RoseExpense,
                                     badgeText = when {
-                                        isTransfer -> "Kassa o'tkazmasi"
+                                        isTransfer -> "Kassalararo o'tkazma"
+                                        isOwnPocket -> "👤 O'z hisobidan"
                                         isOtherPayer -> "$payerObjName hisobidan"
                                         else -> null
                                     },
-                                    badgeColor = if (isTransfer) Color(0xFF8B5CF6) else DeepBluePrimary
+                                    badgeColor = when {
+                                        isTransfer -> Color(0xFF8B5CF6)
+                                        isOwnPocket -> AmberWarning
+                                        else -> DeepBluePrimary
+                                    }
                                 )
                             }
                         }

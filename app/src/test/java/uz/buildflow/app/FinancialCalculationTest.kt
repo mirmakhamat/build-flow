@@ -26,6 +26,8 @@ class FinancialCalculationTest {
                 CategoryExpenseBreakdown("Material", 8_000_000.0),
                 CategoryExpenseBreakdown("Santexnika", 2_000_000.0)
             ),
+            totalPaidFromOwnPocketForThisWorkers = 5_000_000.0,
+            totalExpensesPaidFromOwnPocket = 3_000_000.0,
             totalWorkerCount = 12,
             totalWorkDaysCount = 183
         )
@@ -48,7 +50,10 @@ class FinancialCalculationTest {
         // 6. Ishchilarga qolgan qarz = 45 mln (ish haqi + bonus) - 30 mln (to'langan) = 15 mln
         assertEquals(15_000_000.0, summary.totalWorkerDebt, 0.0)
 
-        // 7. Taxminiy foyda = 150 mln (obyekt narxi) - 60 mln (jami xarajat) = 90 mln
+        // 7. O'z hisobidan jami qoplangan summa = 5 mln (ish haqi) + 3 mln (xarajat) = 8 mln
+        assertEquals(8_000_000.0, summary.totalPaidFromOwnPocket, 0.0)
+
+        // 8. Taxminiy foyda = 150 mln (obyekt narxi) - 60 mln (jami xarajat) = 90 mln
         assertEquals(90_000_000.0, summary.estimatedProfit, 0.0)
     }
 

@@ -112,11 +112,13 @@ data class ObjectFinancialSummary(
     val totalCashPaidToWorkers: Double = totalPaidToWorkers,
     val totalPaidForOtherObjectsWorkers: Double = 0.0,
     val totalPaidByOtherObjectsForThisWorkers: Double = 0.0,
+    val totalPaidFromOwnPocketForThisWorkers: Double = 0.0,
     val totalOtherExpenses: Double,
     val totalTransfersOut: Double = 0.0,
     val totalPaidOtherExpenses: Double = totalOtherExpenses,
     val totalExpensesPaidForOtherObjects: Double = 0.0,
     val totalExpensesPaidByOtherObjects: Double = 0.0,
+    val totalExpensesPaidFromOwnPocket: Double = 0.0,
     val categoryBreakdowns: List<CategoryExpenseBreakdown> = emptyList(),
     val totalWorkerCount: Int,
     val totalWorkDaysCount: Int
@@ -141,6 +143,9 @@ data class ObjectFinancialSummary(
 
     val cashBalance: Double
         get() = totalReceivedIncome - totalCashOutflow
+
+    val totalPaidFromOwnPocket: Double
+        get() = totalPaidFromOwnPocketForThisWorkers + totalExpensesPaidFromOwnPocket
 
     val estimatedProfit: Double
         get() = totalPrice - totalAccruedExpenses
