@@ -77,4 +77,27 @@ class FinancialCalculationTest {
         assertEquals("150 mln", CurrencyFormatter.formatAmountShort(150000000.0))
         assertEquals("250 k", CurrencyFormatter.formatAmountShort(250000.0))
     }
+
+    @Test
+    fun testBulkPayoutSettlement() {
+        // Ishchining 3 ta to'lanmagan kuni bor: 200k, 200k, 200k (jami 600k)
+        val unpaidDayRates = listOf(200_000.0, 200_000.0, 200_000.0)
+        val payoutAmount = 450_000.0 // Foydalanuvchi 450k to'ladi
+
+        var remainingBudget = payoutAmount
+        var closedDaysCount = 0
+
+        for (dayRate in unpaidDayRates) {
+            if (remainingBudget >= dayRate) {
+                closedDaysCount++
+                remainingBudget -= dayRate
+            } else {
+                break
+            }
+        }
+
+        // 2 ta kun to'liq yopildi (400k), 50k esa ortib qoldi (qisman yoki keyingisiga)
+        assertEquals(2, closedDaysCount)
+        assertEquals(50_000.0, remainingBudget, 0.0)
+    }
 }

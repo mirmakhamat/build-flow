@@ -102,13 +102,29 @@ fun WorkersScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { viewModel.openAddWorker() },
-                containerColor = DeepBluePrimary,
-                contentColor = SurfaceLight,
-                shape = RoundedCornerShape(16.dp)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(imageVector = Icons.Default.PersonAdd, contentDescription = "Yangi ishchi qo'shish")
+                if (uiState.workers.isNotEmpty()) {
+                    ExtendedFloatingActionButton(
+                        onClick = { viewModel.openBulkPayoutSheet() },
+                        containerColor = EmeraldSuccess,
+                        contentColor = Color.White,
+                        shape = RoundedCornerShape(16.dp),
+                        icon = { Icon(imageVector = Icons.Default.Payments, contentDescription = null) },
+                        text = { Text("Ommaviy to'lov", fontWeight = FontWeight.Bold) }
+                    )
+                }
+
+                FloatingActionButton(
+                    onClick = { viewModel.openAddWorker() },
+                    containerColor = DeepBluePrimary,
+                    contentColor = SurfaceLight,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(imageVector = Icons.Default.PersonAdd, contentDescription = "Yangi ishchi qo'shish")
+                }
             }
         }
     ) { paddingValues ->
@@ -143,6 +159,19 @@ fun WorkersScreen(
                 }
             }
         }
+    }
+
+    // Ommaviy ish haqi to'lash Sheet
+    if (uiState.isBulkPayoutSheetOpen) {
+        BulkPayoutBottomSheet(
+            workersWithStats = uiState.workers,
+            availableObjects = uiState.availableObjects,
+            currentObjectId = uiState.selectedObjectId ?: "",
+            onDismiss = { viewModel.closeBulkPayoutSheet() },
+            onExecutePayout = { payouts, date, payerObjId ->
+                viewModel.executeBulkPayout(payouts, date, payerObjId)
+            }
+        )
     }
 
     // Yangi ishchi yaratish / tahrirlash Sheet

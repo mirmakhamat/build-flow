@@ -153,6 +153,8 @@ fun AppNavigation(
                     factory = WorkersViewModel.provideFactory(
                         container.workerRepository,
                         container.objectRepository,
+                        container.transactionRepository,
+                        container.workerDayRepository,
                         container.getWorkerStatsUseCase,
                         objectId
                     )

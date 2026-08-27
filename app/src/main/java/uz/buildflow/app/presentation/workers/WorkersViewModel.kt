@@ -7,10 +7,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import uz.buildflow.app.core.util.DateUtil
-import uz.buildflow.app.domain.model.BuildObject
-import uz.buildflow.app.domain.model.Worker
-import uz.buildflow.app.domain.model.WorkerStats
+import uz.buildflow.app.domain.model.*
 import uz.buildflow.app.domain.repository.ObjectRepository
+import uz.buildflow.app.domain.repository.TransactionRepository
+import uz.buildflow.app.domain.repository.WorkerDayRepository
 import uz.buildflow.app.domain.repository.WorkerRepository
 import uz.buildflow.app.domain.usecase.GetWorkerStatsUseCase
 
@@ -36,12 +36,16 @@ data class WorkersUiState(
     val successMessage: String? = null,
     // Boshqa obyektdan ishchi olib kelish (Import) holatlari
     val isImportSheetOpen: Boolean = false,
-    val importableWorkers: List<ImportableWorkerItem> = emptyList()
+    val importableWorkers: List<ImportableWorkerItem> = emptyList(),
+    // Ommaviy ish haqi to'lash (Bulk payout) holatlari
+    val isBulkPayoutSheetOpen: Boolean = false
 )
 
 class WorkersViewModel(
     private val workerRepository: WorkerRepository,
     private val objectRepository: ObjectRepository,
+    private val transactionRepository: TransactionRepository,
+    private val workerDayRepository: WorkerDayRepository,
     private val getWorkerStatsUseCase: GetWorkerStatsUseCase,
     initialObjectId: String? = null
 ) : ViewModel() {
@@ -115,6 +119,81 @@ class WorkersViewModel(
         }
     }
 
+    // OMMAVIY TO'LOV (BULK PAYOUT)
+    fun openBulkPayoutSheet() {
+        if (_uiState.value.workers.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "To'lov qilish uchun ushbu obyektda ishchilar mavjud emas!") }
+            return
+        }
+        _uiState.update { it.copy(isBulkPayoutSheetOpen = true) }
+    }
+
+    fun closeBulkPayoutSheet() {
+        _uiState.update { it.copy(isBulkPayoutSheetOpen = false) }
+    }
+
+    fun executeBulkPayout(payouts: Map<String, Double>, paymentDate: String, payerObjectId: String?) {
+        viewModelScope.launch {
+            val targetObjectId = _uiState.value.selectedObjectId ?: return@launch
+            if (payouts.isEmpty()) return@launch
+
+            var totalProcessedSum = 0.0
+            var workersPaidCount = 0
+
+            payouts.forEach { (workerId, amount) ->
+                if (amount > 0) {
+                    totalProcessedSum += amount
+                    workersPaidCount++
+
+                    // 1. WorkerPayment yozuvini kiritamiz
+                    val payment = WorkerPayment(
+                        workerId = workerId,
+                        objectId = targetObjectId,
+                        payerObjectId = payerObjectId,
+                        amount = amount,
+                        date = DateUtil.today(),
+                        paymentDate = paymentDate.ifBlank { DateUtil.today() },
+                        type = PaymentType.SALARY,
+                        description = "Ommaviy to'lov: ish haqi to'landi"
+                    )
+                    transactionRepository.insertWorkerPayment(payment)
+
+                    // 2. Ishchining to'lanmagan ochiq kunlarini eng eski kundan boshlab yopamiz
+                    val unpaidDays = workerDayRepository.getDaysByWorker(workerId).firstOrNull()
+                        ?.filter { it.paymentStatus == PaymentStatus.UNPAID && it.paymentAmount > 0 }
+                        ?.sortedBy { it.date } ?: emptyList()
+
+                    var remainingBudget = amount
+                    for (unpaidDay in unpaidDays) {
+                        if (remainingBudget <= 0) break
+                        if (remainingBudget >= unpaidDay.paymentAmount) {
+                            workerDayRepository.saveWorkerDay(
+                                unpaidDay.copy(
+                                    paymentStatus = PaymentStatus.PAID,
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            )
+                            remainingBudget -= unpaidDay.paymentAmount
+                        } else {
+                            // Qoldiq summa kunlik stavkadan kam bo'lsa, to'lov kassa chiqimiga yozildi,
+                            // ammo kun to'liq yopilmaydi (keyingi safar yopiladi)
+                            break
+                        }
+                    }
+                }
+            }
+
+            _uiState.update {
+                it.copy(
+                    isBulkPayoutSheetOpen = false,
+                    successMessage = "$workersPaidCount nafar ishchiga jami ${uz.buildflow.app.core.util.CurrencyFormatter.formatAmount(totalProcessedSum)} ish haqi to'landi!"
+                )
+            }
+
+            loadWorkersForObject(targetObjectId)
+        }
+    }
+
     // BOSHQA OBYEKTDAN ISHCHILARNI OLIB KELISH (IMPORT)
     fun openImportWorkerSheet() {
         viewModelScope.launch {
@@ -123,10 +202,8 @@ class WorkersViewModel(
             val currentWorkerNames = _uiState.value.workers.map { it.worker.name.trim().lowercase() }.toSet()
 
             workerRepository.getAllWorkers().firstOrNull()?.let { allWorkers ->
-                // Faqat boshqa obyektga tegishli bo'lgan va ushbu obyektda hali yo'q bo'lgan ishchilar
                 val candidates = allWorkers
                     .filter { it.objectId != currentObjId && !currentWorkerNames.contains(it.name.trim().lowercase()) }
-                    // Nomlari bo'yicha takrorlanishlarni oldini olish
                     .distinctBy { it.name.trim().lowercase() }
                     .map { w ->
                         val objName = allObjects[w.objectId]?.name ?: "Boshqa obyekt"
@@ -235,12 +312,21 @@ class WorkersViewModel(
         fun provideFactory(
             workerRepository: WorkerRepository,
             objectRepository: ObjectRepository,
+            transactionRepository: TransactionRepository,
+            workerDayRepository: WorkerDayRepository,
             getWorkerStatsUseCase: GetWorkerStatsUseCase,
             initialObjectId: String? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return WorkersViewModel(workerRepository, objectRepository, getWorkerStatsUseCase, initialObjectId) as T
+                return WorkersViewModel(
+                    workerRepository,
+                    objectRepository,
+                    transactionRepository,
+                    workerDayRepository,
+                    getWorkerStatsUseCase,
+                    initialObjectId
+                ) as T
             }
         }
     }
