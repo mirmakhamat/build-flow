@@ -27,7 +27,7 @@ import uz.buildflow.app.presentation.objects.ObjectDetailScreen
 import uz.buildflow.app.presentation.objects.ObjectDetailViewModel
 import uz.buildflow.app.presentation.objects.ObjectsScreen
 import uz.buildflow.app.presentation.objects.ObjectsViewModel
-import uz.buildflow.app.presentation.reports.ReportsScreen
+import uz.buildflow.app.presentation.reports.*
 import uz.buildflow.app.presentation.transactions.IncomesScreen
 import uz.buildflow.app.presentation.transactions.IncomesViewModel
 import uz.buildflow.app.presentation.workers.*
@@ -145,8 +145,31 @@ fun AppNavigation(
                     onObjectClick = { objId ->
                         navController.navigate("object_dashboard/$objId")
                     },
+                    onNavigateToGlobalReports = {
+                        navController.navigate("global_reports")
+                    },
                     onExportDatabase = {
                         DatabaseBackupHelper.exportDatabase(context, container.database)
+                    },
+                    onTogglePrivacy = handleTogglePrivacy
+                )
+            }
+
+            // 1.1 KOMPANIYA UMUMIY HISOBOTI (Barcha obyektlar yig'ma tahlili)
+            composable("global_reports") {
+                val viewModel: GlobalReportsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = GlobalReportsViewModel.provideFactory(
+                        getGlobalFinancialSummaryUseCase = container.getGlobalFinancialSummaryUseCase,
+                        objectRepository = container.objectRepository,
+                        workerRepository = container.workerRepository,
+                        getWorkerStatsUseCase = container.getWorkerStatsUseCase
+                    )
+                )
+                GlobalReportsScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onNavigateToObject = { objId ->
+                        navController.navigate("object_dashboard/$objId")
                     },
                     onTogglePrivacy = handleTogglePrivacy
                 )

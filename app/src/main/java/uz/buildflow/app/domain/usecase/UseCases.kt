@@ -169,3 +169,149 @@ class GetWorkerStatsUseCase(
         }
     }
 }
+
+class GetGlobalFinancialSummaryUseCase(
+    private val objectRepository: ObjectRepository,
+    private val getObjectFinancialSummaryUseCase: GetObjectFinancialSummaryUseCase,
+    private val transactionRepository: TransactionRepository,
+    private val expenseRepository: ExpenseRepository,
+    private val workerRepository: WorkerRepository
+) {
+    operator fun invoke(): Flow<GlobalFinancialSummary> {
+        return objectRepository.getAllObjects().flatMapLatest { objects ->
+            if (objects.isEmpty()) {
+                flowOf(
+                    GlobalFinancialSummary(
+                        totalObjectsCount = 0,
+                        activeObjectsCount = 0,
+                        completedObjectsCount = 0,
+                        totalAgreedPrice = 0.0,
+                        totalReceivedIncome = 0.0,
+                        totalClientIncome = 0.0,
+                        totalWorkerSalaryEarned = 0.0,
+                        totalBonusesEarned = 0.0,
+                        totalOtherExpenses = 0.0,
+                        totalPaidToWorkers = 0.0,
+                        totalCashPaidToWorkers = 0.0,
+                        totalPaidOtherExpenses = 0.0,
+                        totalPaidFromOwnPocket = 0.0,
+                        totalWorkerDebt = 0.0,
+                        totalWorkerCount = 0,
+                        totalWorkDaysCount = 0
+                    )
+                )
+            } else {
+                val objectSummaryFlows = objects.map { obj ->
+                    getObjectFinancialSummaryUseCase(obj.id)
+                }
+
+                combine(objectSummaryFlows) { summariesArray ->
+                    val nonNullSummaries = summariesArray.filterNotNull()
+                    val totalObjects = objects.size
+                    val activeObjects = objects.count { it.status == ObjectStatus.ACTIVE }
+                    val completedObjects = objects.count { it.status == ObjectStatus.COMPLETED }
+
+                    val totalAgreed = nonNullSummaries.sumOf { it.totalPrice }
+                    val totalReceived = nonNullSummaries.sumOf { it.totalReceivedIncome }
+                    val totalClientInc = nonNullSummaries.sumOf { it.totalClientIncome }
+                    val totalSalary = nonNullSummaries.sumOf { it.totalWorkerSalary }
+                    val totalDailyBonus = nonNullSummaries.sumOf { it.totalDailyBonuses }
+                    val totalGenBonus = nonNullSummaries.sumOf { it.totalGeneralBonuses }
+                    val totalBonuses = totalDailyBonus + totalGenBonus
+                    val totalOtherExp = nonNullSummaries.sumOf { it.totalOtherExpenses }
+                    val totalPaidWorkers = nonNullSummaries.sumOf { it.totalPaidToWorkers }
+                    val totalCashPaidWorkers = nonNullSummaries.sumOf { it.totalCashPaidToWorkers }
+                    val totalPaidOtherExp = nonNullSummaries.sumOf { it.totalPaidOtherExpenses }
+                    val totalOwnPocket = nonNullSummaries.sumOf { it.totalPaidFromOwnPocket }
+                    val totalWorkerDebt = nonNullSummaries.sumOf { it.totalWorkerDebt }
+                    val totalWorkers = nonNullSummaries.sumOf { it.totalWorkerCount }
+                    val totalWorkDays = nonNullSummaries.sumOf { it.totalWorkDaysCount }
+
+                    // Obyektlar rentabelligi va reytingi
+                    val objProfitabilities = nonNullSummaries.map { s ->
+                        val obj = objects.find { it.id == s.objectId }
+                        val status = obj?.status ?: ObjectStatus.ACTIVE
+                        val margin = if (s.totalPrice > 0) (s.estimatedProfit / s.totalPrice) * 100.0 else 0.0
+                        val completion = if (s.totalPrice > 0) (s.totalClientIncome / s.totalPrice) * 100.0 else 0.0
+
+                        ObjectProfitabilityItem(
+                            objectId = s.objectId,
+                            objectName = s.objectName,
+                            status = status,
+                            totalPrice = s.totalPrice,
+                            totalIncome = s.totalClientIncome,
+                            totalExpenses = s.totalExpenses,
+                            cashBalance = s.cashBalance,
+                            estimatedProfit = s.estimatedProfit,
+                            profitMargin = margin,
+                            completionPercentage = completion
+                        )
+                    }.sortedByDescending { it.estimatedProfit }
+
+                    // Global kategoriyalar bo'yicha yig'ma xarajatlar
+                    val categoryMap = mutableMapOf<String, Double>()
+                    nonNullSummaries.forEach { s ->
+                        s.categoryBreakdowns.forEach { cat ->
+                            categoryMap[cat.categoryName] = (categoryMap[cat.categoryName] ?: 0.0) + cat.totalAmount
+                        }
+                    }
+                    val globalCategoryList = categoryMap.map { (catName, amount) ->
+                        CategoryExpenseBreakdown(categoryName = catName, totalAmount = amount)
+                    }.sortedByDescending { it.totalAmount }
+
+                    // Obyektlararo o'zaro qarzdorliklar (boshqa obyekt uchun to'langan ish haqi va xarajatlar)
+                    val interDebts = mutableListOf<InterObjectDebtItem>()
+                    nonNullSummaries.forEach { s ->
+                        if (s.totalPaidForOtherObjectsWorkers > 0) {
+                            interDebts.add(
+                                InterObjectDebtItem(
+                                    sourceObjectId = s.objectId,
+                                    sourceObjectName = s.objectName,
+                                    targetObjectId = "",
+                                    targetObjectName = "Boshqa obyekt ishchilari",
+                                    amount = s.totalPaidForOtherObjectsWorkers,
+                                    reason = "Ishchilar maoshi uchun to'lab berilgan"
+                                )
+                            )
+                        }
+                        if (s.totalExpensesPaidForOtherObjects > 0) {
+                            interDebts.add(
+                                InterObjectDebtItem(
+                                    sourceObjectId = s.objectId,
+                                    sourceObjectName = s.objectName,
+                                    targetObjectId = "",
+                                    targetObjectName = "Boshqa obyekt xarajati",
+                                    amount = s.totalExpensesPaidForOtherObjects,
+                                    reason = "Material va boshqa xarajatlar uchun qoplangan"
+                                )
+                            )
+                        }
+                    }
+
+                    GlobalFinancialSummary(
+                        totalObjectsCount = totalObjects,
+                        activeObjectsCount = activeObjects,
+                        completedObjectsCount = completedObjects,
+                        totalAgreedPrice = totalAgreed,
+                        totalReceivedIncome = totalReceived,
+                        totalClientIncome = totalClientInc,
+                        totalWorkerSalaryEarned = totalSalary,
+                        totalBonusesEarned = totalBonuses,
+                        totalOtherExpenses = totalOtherExp,
+                        totalPaidToWorkers = totalPaidWorkers,
+                        totalCashPaidToWorkers = totalCashPaidWorkers,
+                        totalPaidOtherExpenses = totalPaidOtherExp,
+                        totalPaidFromOwnPocket = totalOwnPocket,
+                        totalWorkerDebt = totalWorkerDebt,
+                        totalWorkerCount = totalWorkers,
+                        totalWorkDaysCount = totalWorkDays,
+                        objectSummaries = nonNullSummaries,
+                        objectProfitabilities = objProfitabilities,
+                        globalCategoryBreakdowns = globalCategoryList,
+                        interObjectDebts = interDebts
+                    )
+                }
+            }
+        }
+    }
+}

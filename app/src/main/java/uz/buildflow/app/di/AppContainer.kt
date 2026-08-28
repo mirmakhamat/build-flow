@@ -59,4 +59,14 @@ class AppContainer(context: Context) {
             transactionRepository
         )
     }
+
+    val getGlobalFinancialSummaryUseCase by lazy {
+        GetGlobalFinancialSummaryUseCase(
+            objectRepository = objectRepository,
+            getObjectFinancialSummaryUseCase = getObjectFinancialSummaryUseCase,
+            transactionRepository = transactionRepository,
+            expenseRepository = expenseRepository,
+            workerRepository = workerRepository
+        )
+    }
 }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -36,6 +37,7 @@ import uz.buildflow.app.presentation.common.StatusBadge
 fun ObjectsScreen(
     viewModel: ObjectsViewModel,
     onObjectClick: (String) -> Unit,
+    onNavigateToGlobalReports: () -> Unit,
     onExportDatabase: () -> Unit,
     onTogglePrivacy: () -> Unit = {}
 ) {
@@ -69,6 +71,13 @@ fun ObjectsScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onNavigateToGlobalReports) {
+                        Icon(
+                            imageVector = Icons.Default.Assessment,
+                            contentDescription = "Kompaniya Umumiy Hisoboti",
+                            tint = DeepBluePrimary
+                        )
+                    }
                     PrivacyToggleButton(onToggle = onTogglePrivacy)
                     IconButton(onClick = { filePickerLauncher.launch("*/*") }) {
                         Icon(
@@ -125,6 +134,15 @@ fun ObjectsScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    if (uiState.objects.isNotEmpty()) {
+                        item {
+                            GlobalSummaryBanner(
+                                objects = uiState.objects,
+                                onOpenGlobalReports = onNavigateToGlobalReports
+                            )
+                        }
+                    }
+
                     items(uiState.objects, key = { it.obj.id }) { item ->
                         ObjectCard(
                             obj = item.obj,
@@ -250,6 +268,125 @@ fun ObjectCard(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = if ((summary?.cashBalance ?: 0.0) >= 0) DeepBlueLight else RoseExpense
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GlobalSummaryBanner(
+    objects: List<ObjectWithSummary>,
+    onOpenGlobalReports: () -> Unit
+) {
+    val isPrivacyMode = LocalPrivacyMode.current
+    val totalIncome = objects.sumOf { it.summary?.totalClientIncome ?: 0.0 }
+    val totalCashBalance = objects.sumOf { it.summary?.cashBalance ?: 0.0 }
+    val totalWorkerDebt = objects.sumOf { it.summary?.totalWorkerDebt ?: 0.0 }
+    val totalProfit = objects.sumOf { it.summary?.estimatedProfit ?: 0.0 }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenGlobalReports() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceLight),
+        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderColor))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .background(DeepBlueLight.copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Assessment,
+                            contentDescription = null,
+                            tint = DeepBluePrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Kompaniya Umumiy Balansi",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Text(
+                            text = "${objects.size} ta obyekt bo'yicha yig'ma",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "Hisobot",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = DeepBluePrimary
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = DeepBluePrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            HorizontalDivider(color = BorderColor.copy(alpha = 0.5f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(text = "Erkin Kassa:", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Text(
+                        text = CurrencyFormatter.formatAmountShort(totalCashBalance, isPrivacyMode),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = DeepBluePrimary
+                    )
+                }
+                Column {
+                    Text(text = "Tushum:", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Text(
+                        text = CurrencyFormatter.formatAmountShort(totalIncome, isPrivacyMode),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = EmeraldSuccess
+                    )
+                }
+                Column {
+                    Text(text = "Ishchi qarzi:", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Text(
+                        text = CurrencyFormatter.formatAmountShort(totalWorkerDebt, isPrivacyMode),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = if (totalWorkerDebt > 0) RoseExpense else EmeraldSuccess
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(text = "Sof Foyda:", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Text(
+                        text = CurrencyFormatter.formatAmountShort(totalProfit, isPrivacyMode),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = if (totalProfit >= 0) EmeraldSuccess else RoseExpense
                     )
                 }
             }

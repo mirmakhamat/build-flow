@@ -978,10 +978,13 @@ fun DrillDownCard(
     amount: Double,
     amountColor: Color,
     badgeText: String? = null,
-    badgeColor: Color = DeepBluePrimary
+    badgeColor: Color = DeepBluePrimary,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceVariantLight.copy(alpha = 0.5f)),
         border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(BorderColor))

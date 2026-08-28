@@ -175,3 +175,72 @@ data class WorkerStats(
     val workerDebtToUs: Double
         get() = (totalPaid - totalEarned).coerceAtLeast(0.0)
 }
+
+data class ObjectProfitabilityItem(
+    val objectId: String,
+    val objectName: String,
+    val status: ObjectStatus,
+    val totalPrice: Double,
+    val totalIncome: Double,
+    val totalExpenses: Double,
+    val cashBalance: Double,
+    val estimatedProfit: Double,
+    val profitMargin: Double, // Foizda (masalan, 35.5%)
+    val completionPercentage: Double // Shartnomaga nisbatan tushum foizi
+)
+
+data class InterObjectDebtItem(
+    val sourceObjectId: String,
+    val sourceObjectName: String,
+    val targetObjectId: String,
+    val targetObjectName: String,
+    val amount: Double,
+    val reason: String // Masalan: "Ishchilar ish haqi uchun" yoki "Material xarajati uchun"
+)
+
+data class GlobalFinancialSummary(
+    val totalObjectsCount: Int,
+    val activeObjectsCount: Int,
+    val completedObjectsCount: Int,
+    val totalAgreedPrice: Double,
+    val totalReceivedIncome: Double,
+    val totalClientIncome: Double,
+    val totalWorkerSalaryEarned: Double,
+    val totalBonusesEarned: Double,
+    val totalOtherExpenses: Double,
+    val totalPaidToWorkers: Double,
+    val totalCashPaidToWorkers: Double,
+    val totalPaidOtherExpenses: Double,
+    val totalPaidFromOwnPocket: Double,
+    val totalWorkerDebt: Double,
+    val totalWorkerCount: Int,
+    val totalWorkDaysCount: Int,
+    val objectSummaries: List<ObjectFinancialSummary> = emptyList(),
+    val objectProfitabilities: List<ObjectProfitabilityItem> = emptyList(),
+    val globalCategoryBreakdowns: List<CategoryExpenseBreakdown> = emptyList(),
+    val interObjectDebts: List<InterObjectDebtItem> = emptyList()
+) {
+    val totalAccruedExpenses: Double
+        get() = totalWorkerSalaryEarned + totalBonusesEarned + totalOtherExpenses
+
+    val totalExpenses: Double
+        get() = totalAccruedExpenses
+
+    val remainingReceivable: Double
+        get() = (totalAgreedPrice - totalClientIncome).coerceAtLeast(0.0)
+
+    val totalCashOutflow: Double
+        get() = totalCashPaidToWorkers + totalPaidOtherExpenses
+
+    val totalCashBalance: Double
+        get() = totalReceivedIncome - totalCashOutflow
+
+    val estimatedProfit: Double
+        get() = totalAgreedPrice - totalAccruedExpenses
+
+    val overallProfitMargin: Double
+        get() = if (totalAgreedPrice > 0) (estimatedProfit / totalAgreedPrice) * 100.0 else 0.0
+
+    val incomeCollectionRate: Double
+        get() = if (totalAgreedPrice > 0) (totalClientIncome / totalAgreedPrice) * 100.0 else 0.0
+}
