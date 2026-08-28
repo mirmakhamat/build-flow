@@ -32,25 +32,65 @@ import uz.buildflow.app.presentation.common.EmptyStateView
 import uz.buildflow.app.presentation.common.PrivacyToggleButton
 import uz.buildflow.app.presentation.common.StatusBadge
 
+import android.widget.Toast
+import java.io.File
+import kotlinx.coroutines.launch
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import uz.buildflow.app.core.database.AppDatabase
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ObjectsScreen(
     viewModel: ObjectsViewModel,
+    database: AppDatabase,
     onObjectClick: (String) -> Unit,
     onNavigateToGlobalReports: () -> Unit,
-    onExportDatabase: () -> Unit,
     onTogglePrivacy: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val isPrivacyMode = LocalPrivacyMode.current
 
+    var isExportDialogOpen by remember { mutableStateOf(false) }
+    var exportPassword by remember { mutableStateOf("") }
+    var isExportPasswordVisible by remember { mutableStateOf(false) }
+    var exportSuccessPath by remember { mutableStateOf<String?>(null) }
+    var exportSavedFile by remember { mutableStateOf<File?>(null) }
+
+    val coroutineScope = rememberCoroutineScope()
+    var isImporting by remember { mutableStateOf(false) }
+
+    var selectedImportUri by remember { mutableStateOf<Uri?>(null) }
+    var isImportPasswordDialogOpen by remember { mutableStateOf(false) }
+    var importPassword by remember { mutableStateOf("") }
+    var isImportPasswordVisible by remember { mutableStateOf(false) }
+
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
-            DatabaseBackupHelper.importDatabase(context, uri) {
-                viewModel.refresh()
+            val isEncrypted = DatabaseBackupHelper.isEncryptedBackup(context, uri)
+            if (isEncrypted) {
+                selectedImportUri = uri
+                importPassword = ""
+                isImportPasswordDialogOpen = true
+            } else {
+                isImporting = true
+                coroutineScope.launch {
+                    DatabaseBackupHelper.importDatabase(
+                        context = context,
+                        database = database,
+                        sourceUri = uri,
+                        onSuccess = {
+                            isImporting = false
+                        },
+                        onError = { errMsg ->
+                            isImporting = false
+                            Toast.makeText(context, errMsg, Toast.LENGTH_LONG).show()
+                        }
+                    )
+                }
             }
         }
     }
@@ -79,14 +119,17 @@ fun ObjectsScreen(
                         )
                     }
                     PrivacyToggleButton(onToggle = onTogglePrivacy)
-                    IconButton(onClick = { filePickerLauncher.launch("*/*") }) {
+                    IconButton(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
                         Icon(
                             imageVector = Icons.Default.FileUpload,
                             contentDescription = "Zaxira Nusxadan Tiklash (Import DB)",
                             tint = DeepBluePrimary
                         )
                     }
-                    IconButton(onClick = onExportDatabase) {
+                    IconButton(onClick = {
+                        exportPassword = ""
+                        isExportDialogOpen = true
+                    }) {
                         Icon(
                             imageVector = Icons.Default.SaveAlt,
                             contentDescription = "Baza Nusxasini Yuklab Olish (Backup / Eksport)",
@@ -163,6 +206,259 @@ fun ObjectsScreen(
                 viewModel.saveObject(name, desc, price, date, status)
             }
         )
+    }
+
+    // 1. Eksport Parol Dialogi
+    if (isExportDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { isExportDialogOpen = false },
+            title = {
+                Text(
+                    text = "Baza Nusxasini Saqlash",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Ixtiyoriy: Baza nusxasini begonalardan himoyalash uchun maxfiy parol kiriting. Agar parol kiritmasangiz, ochiq formatda saqlanadi.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                    OutlinedTextField(
+                        value = exportPassword,
+                        onValueChange = { exportPassword = it },
+                        label = { Text("Maxfiy parol (ixtiyoriy)") },
+                        singleLine = true,
+                        visualTransformation = if (isExportPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isExportPasswordVisible = !isExportPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isExportPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isExportDialogOpen = false
+                        DatabaseBackupHelper.exportDatabaseToDownloads(
+                            context = context,
+                            database = database,
+                            password = exportPassword.ifBlank { null },
+                            onSuccess = { savedPath, savedFile ->
+                                exportSuccessPath = savedPath
+                                exportSavedFile = savedFile
+                            },
+                            onError = { errMsg ->
+                                Toast.makeText(context, errMsg, Toast.LENGTH_LONG).show()
+                            }
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DeepBluePrimary)
+                ) {
+                    Text("Saqlash", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isExportDialogOpen = false }) {
+                    Text("Bekor qilish")
+                }
+            }
+        )
+    }
+
+    // 1.1 Eksport Muvaffaqiyatli Saqlandi Dialogi
+    if (exportSuccessPath != null) {
+        AlertDialog(
+            onDismissRequest = {
+                exportSuccessPath = null
+                exportSavedFile = null
+            },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = EmeraldSuccess
+                    )
+                    Text(
+                        text = "Baza Nusxasi Saqlandi 🎉",
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Zaxira nusxasi telefon xotirasiga muvaffaqiyatli saqlandi:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Surface(
+                        color = SurfaceVariantLight,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = exportSuccessPath ?: "",
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                            modifier = Modifier.padding(10.dp),
+                            color = DeepBluePrimary
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val file = exportSavedFile
+                        if (file != null) {
+                            DatabaseBackupHelper.shareBackupFile(context, file)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess)
+                ) {
+                    Icon(imageVector = Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Ulashish (Yuborish)", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    exportSuccessPath = null
+                    exportSavedFile = null
+                }) {
+                    Text("Yopish")
+                }
+            }
+        )
+    }
+
+    // 2. Shifrlangan Bazani Tiklash (Import) Parol Dialogi
+    if (isImportPasswordDialogOpen && selectedImportUri != null) {
+        AlertDialog(
+            onDismissRequest = {
+                isImportPasswordDialogOpen = false
+                selectedImportUri = null
+            },
+            title = {
+                Text(
+                    text = "Shifrlangan Baza Nusxasi",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Ushbu zaxira nusxasi maxfiy parol bilan himoyalangan. Bazani tiklash uchun parolni kiriting:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                    OutlinedTextField(
+                        value = importPassword,
+                        onValueChange = { importPassword = it },
+                        label = { Text("Maxfiy parol") },
+                        singleLine = true,
+                        visualTransformation = if (isImportPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isImportPasswordVisible = !isImportPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isImportPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val uri = selectedImportUri ?: return@Button
+                        isImportPasswordDialogOpen = false
+                        isImporting = true
+                        coroutineScope.launch {
+                            DatabaseBackupHelper.importDatabase(
+                                context = context,
+                                database = database,
+                                sourceUri = uri,
+                                password = importPassword,
+                                onSuccess = {
+                                    isImporting = false
+                                    selectedImportUri = null
+                                },
+                                onError = { errMsg ->
+                                    isImporting = false
+                                    selectedImportUri = null
+                                    Toast.makeText(context, errMsg, Toast.LENGTH_LONG).show()
+                                }
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess)
+                ) {
+                    Text("Tiklash", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    isImportPasswordDialogOpen = false
+                    selectedImportUri = null
+                }) {
+                    Text("Bekor qilish")
+                }
+            }
+        )
+    }
+
+    // 3. Baza Yangilanmoqda Loading Dialogi (Foydalanuvchi boshqa joyni bosolmaydi)
+    if (isImporting) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = {},
+            properties = androidx.compose.ui.window.DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
+            )
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = SurfaceLight,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = DeepBluePrimary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Text(
+                        text = "Baza tiklanmoqda...",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "Iltimos, kuting. Ma'lumotlar qayta tekshirilib, ilova yangilanmoqda.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        }
     }
 }
 

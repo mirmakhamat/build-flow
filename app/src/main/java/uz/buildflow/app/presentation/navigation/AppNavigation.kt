@@ -142,14 +142,12 @@ fun AppNavigation(
                 )
                 ObjectsScreen(
                     viewModel = viewModel,
+                    database = container.database,
                     onObjectClick = { objId ->
                         navController.navigate("object_dashboard/$objId")
                     },
                     onNavigateToGlobalReports = {
                         navController.navigate("global_reports")
-                    },
-                    onExportDatabase = {
-                        DatabaseBackupHelper.exportDatabase(context, container.database)
                     },
                     onTogglePrivacy = handleTogglePrivacy
                 )
