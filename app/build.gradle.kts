@@ -4,6 +4,19 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+}
+
+val masterSalt: String = localProperties.getProperty("BUILDFLOW_MASTER_SALT")
+    ?: System.getenv("BUILDFLOW_MASTER_SALT")
+    ?: "BuildFlow_Default_OpenSource_Salt_Key"
+
 android {
     namespace = "uz.buildflow.app"
     compileSdk = 34
@@ -12,8 +25,10 @@ android {
         applicationId = "uz.buildflow.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.2.0"
+
+        buildConfigField("String", "MASTER_SECRET_SALT", "\"$masterSalt\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -54,6 +69,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"
@@ -72,6 +88,7 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:1.8.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
+    implementation("androidx.lifecycle:lifecycle-process:2.8.0")
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
 

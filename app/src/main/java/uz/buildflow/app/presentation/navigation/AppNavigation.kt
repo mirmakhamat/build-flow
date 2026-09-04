@@ -19,7 +19,11 @@ import uz.buildflow.app.core.theme.SurfaceLight
 import uz.buildflow.app.core.theme.TextSecondary
 import uz.buildflow.app.core.util.BiometricHelper
 import uz.buildflow.app.core.util.DatabaseBackupHelper
+import uz.buildflow.app.core.util.DeviceSecurityManager
 import uz.buildflow.app.di.AppContainer
+import uz.buildflow.app.presentation.activation.ActivationScreen
+import uz.buildflow.app.presentation.lock.AppLockScreen
+import uz.buildflow.app.presentation.settings.SettingsScreen
 import uz.buildflow.app.presentation.common.findFragmentActivity
 import uz.buildflow.app.presentation.expenses.ExpensesScreen
 import uz.buildflow.app.presentation.expenses.ExpensesViewModel
@@ -91,67 +95,107 @@ fun AppNavigation(
         }
     }
 
-    Scaffold(
-        bottomBar = {
-            if (isInsideObjectScope && currentObjectId != null) {
-                NavigationBar(containerColor = SurfaceLight) {
-                    objectTabs.forEach { tab ->
-                        val targetRoute = "object_${tab.tabName}/$currentObjectId"
-                        val isSelected = currentRoute?.startsWith("object_${tab.tabName}") == true
+    val isDeviceActivated = remember { DeviceSecurityManager.isDeviceActivated(context) }
+    val startDestination = if (isDeviceActivated) "objects" else "activation"
+    val isAppLocked by container.appLockManager.isLocked.collectAsState()
 
-                        NavigationBarItem(
-                            icon = { Icon(tab.icon, contentDescription = tab.title) },
-                            label = { Text(tab.title) },
-                            selected = isSelected,
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = DeepBluePrimary,
-                                selectedTextColor = DeepBluePrimary,
-                                indicatorColor = DeepBluePrimary.copy(alpha = 0.12f),
-                                unselectedIconColor = TextSecondary,
-                                unselectedTextColor = TextSecondary
-                            ),
-                            onClick = {
-                                if (!isSelected) {
-                                    navController.navigate(targetRoute) {
-                                        popUpTo("object_dashboard/$currentObjectId") {
-                                            saveState = false
+    if (isDeviceActivated && isAppLocked) {
+        AppLockScreen(
+            onUnlockSuccess = {
+                container.appLockManager.unlock()
+            }
+        )
+    } else {
+        Scaffold(
+            bottomBar = {
+                if (isInsideObjectScope && currentObjectId != null) {
+                    NavigationBar(containerColor = SurfaceLight) {
+                        objectTabs.forEach { tab ->
+                            val targetRoute = "object_${tab.tabName}/$currentObjectId"
+                            val isSelected = currentRoute?.startsWith("object_${tab.tabName}") == true
+
+                            NavigationBarItem(
+                                icon = { Icon(tab.icon, contentDescription = tab.title) },
+                                label = { Text(tab.title) },
+                                selected = isSelected,
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = DeepBluePrimary,
+                                    selectedTextColor = DeepBluePrimary,
+                                    indicatorColor = DeepBluePrimary.copy(alpha = 0.12f),
+                                    unselectedIconColor = TextSecondary,
+                                    unselectedTextColor = TextSecondary
+                                ),
+                                onClick = {
+                                    if (!isSelected) {
+                                        navController.navigate(targetRoute) {
+                                            popUpTo("object_dashboard/$currentObjectId") {
+                                                saveState = false
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = false
                                         }
-                                        launchSingleTop = true
-                                        restoreState = false
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
-        }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = "objects",
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            // 1. BARCHA OBYEKTLAR RO'YXATI (Bosh sahifa)
-            composable("objects") {
-                val viewModel: ObjectsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = ObjectsViewModel.provideFactory(
-                        container.objectRepository,
-                        container.getObjectFinancialSummaryUseCase
+        ) { innerPadding ->
+            NavHost(
+                navController = navController,
+                startDestination = startDestination,
+                modifier = Modifier.padding(innerPadding)
+            ) {
+                // 0. QURILMANI TASDIQLASH (Aktivatsiya)
+                composable("activation") {
+                    ActivationScreen(
+                        onActivated = {
+                            navController.navigate("objects") {
+                                popUpTo("activation") { inclusive = true }
+                            }
+                        }
                     )
-                )
-                ObjectsScreen(
-                    viewModel = viewModel,
-                    database = container.database,
-                    onObjectClick = { objId ->
-                        navController.navigate("object_dashboard/$objId")
-                    },
-                    onNavigateToGlobalReports = {
-                        navController.navigate("global_reports")
-                    },
-                    onTogglePrivacy = handleTogglePrivacy
-                )
-            }
+                }
+
+                // 0.1 SOZLAMALAR VA XAVFSIZLIK
+                composable("settings") {
+                    SettingsScreen(
+                        userPreferences = container.userPreferences,
+                        appLockManager = container.appLockManager,
+                        onNavigateBack = { navController.popBackStack() },
+                        onExportDatabase = {
+                            navController.popBackStack()
+                        },
+                        onImportDatabase = {
+                            navController.popBackStack()
+                        }
+                    )
+                }
+
+                // 1. BARCHA OBYEKTLAR RO'YXATI (Bosh sahifa)
+                composable("objects") {
+                    val viewModel: ObjectsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                        factory = ObjectsViewModel.provideFactory(
+                            container.objectRepository,
+                            container.getObjectFinancialSummaryUseCase
+                        )
+                    )
+                    ObjectsScreen(
+                        viewModel = viewModel,
+                        database = container.database,
+                        onObjectClick = { objId ->
+                            navController.navigate("object_dashboard/$objId")
+                        },
+                        onNavigateToGlobalReports = {
+                            navController.navigate("global_reports")
+                        },
+                        onNavigateToSettings = {
+                            navController.navigate("settings")
+                        },
+                        onTogglePrivacy = handleTogglePrivacy
+                    )
+                }
 
             // 1.1 KOMPANIYA UMUMIY HISOBOTI (Barcha obyektlar yig'ma tahlili)
             composable("global_reports") {
@@ -367,5 +411,6 @@ fun AppNavigation(
                 )
             }
         }
+    }
     }
 }

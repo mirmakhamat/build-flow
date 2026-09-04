@@ -31,6 +31,8 @@ import uz.buildflow.app.domain.model.ObjectStatus
 import uz.buildflow.app.presentation.common.EmptyStateView
 import uz.buildflow.app.presentation.common.PrivacyToggleButton
 import uz.buildflow.app.presentation.common.StatusBadge
+import uz.buildflow.app.presentation.common.MainDrawerSheet
+import uz.buildflow.app.core.util.DeviceSecurityManager
 
 import android.widget.Toast
 import java.io.File
@@ -46,11 +48,14 @@ fun ObjectsScreen(
     database: AppDatabase,
     onObjectClick: (String) -> Unit,
     onNavigateToGlobalReports: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     onTogglePrivacy: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val isPrivacyMode = LocalPrivacyMode.current
+    val deviceId = remember { DeviceSecurityManager.getDeviceId(context) }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     var isExportDialogOpen by remember { mutableStateOf(false) }
     var exportPassword by remember { mutableStateOf("") }
@@ -95,58 +100,75 @@ fun ObjectsScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = "BuildFlow",
-                            style = MaterialTheme.typography.headlineMedium.copy(color = DeepBluePrimary)
-                        )
-                        Text(
-                            text = "Barcha faol obyektlar",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            MainDrawerSheet(
+                deviceId = deviceId,
+                onNavigateToObjects = {
+                    coroutineScope.launch { drawerState.close() }
                 },
-                actions = {
-                    IconButton(onClick = onNavigateToGlobalReports) {
-                        Icon(
-                            imageVector = Icons.Default.Assessment,
-                            contentDescription = "Kompaniya Umumiy Hisoboti",
-                            tint = DeepBluePrimary
-                        )
-                    }
-                    PrivacyToggleButton(onToggle = onTogglePrivacy)
-                    IconButton(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
-                        Icon(
-                            imageVector = Icons.Default.FileUpload,
-                            contentDescription = "Zaxira Nusxadan Tiklash (Import DB)",
-                            tint = DeepBluePrimary
-                        )
-                    }
-                    IconButton(onClick = {
-                        exportPassword = ""
-                        isExportDialogOpen = true
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.SaveAlt,
-                            contentDescription = "Baza Nusxasini Yuklab Olish (Backup / Eksport)",
-                            tint = DeepBluePrimary
-                        )
-                    }
-                    IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Yangilash (Refresh)",
-                            tint = DeepBluePrimary
-                        )
-                    }
+                onNavigateToGlobalReports = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToGlobalReports()
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceLight)
+                onNavigateToSettings = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToSettings()
+                },
+                onExportDatabase = {
+                    coroutineScope.launch { drawerState.close() }
+                    exportPassword = ""
+                    isExportDialogOpen = true
+                },
+                onImportDatabase = {
+                    coroutineScope.launch { drawerState.close() }
+                    filePickerLauncher.launch(arrayOf("*/*"))
+                },
+                onRefresh = {
+                    coroutineScope.launch { drawerState.close() }
+                    viewModel.refresh()
+                }
             )
-        },
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text(
+                                text = "BuildFlow",
+                                style = MaterialTheme.typography.headlineMedium.copy(color = DeepBluePrimary)
+                            )
+                            Text(
+                                text = "Barcha faol obyektlar",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { coroutineScope.launch { drawerState.open() } }) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Yon Menyu",
+                                tint = DeepBluePrimary
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = onNavigateToGlobalReports) {
+                            Icon(
+                                imageVector = Icons.Default.Assessment,
+                                contentDescription = "Kompaniya Umumiy Hisoboti",
+                                tint = DeepBluePrimary
+                            )
+                        }
+                        PrivacyToggleButton(onToggle = onTogglePrivacy)
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceLight)
+                )
+            },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { viewModel.openAddObject() },
@@ -459,6 +481,7 @@ fun ObjectsScreen(
                 }
             }
         }
+    }
     }
 }
 

@@ -10,6 +10,7 @@ import uz.buildflow.app.domain.usecase.*
 class AppContainer(context: Context) {
     val database: AppDatabase = AppDatabase.getInstance(context)
     val userPreferences: UserPreferences = UserPreferences.getInstance(context)
+    val appLockManager: uz.buildflow.app.core.util.AppLockManager = uz.buildflow.app.core.util.AppLockManager(context, userPreferences)
 
     val objectRepository: ObjectRepository by lazy {
         ObjectRepositoryImpl(database.objectDao())
