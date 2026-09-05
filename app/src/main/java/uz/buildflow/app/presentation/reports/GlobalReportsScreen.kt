@@ -45,6 +45,7 @@ fun GlobalReportsScreen(
     viewModel: GlobalReportsViewModel,
     onBack: () -> Unit,
     onNavigateToObject: (String) -> Unit,
+    onNavigateToWorkersReport: () -> Unit = {},
     onTogglePrivacy: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -163,6 +164,10 @@ fun GlobalReportsScreen(
             onNavigateToObject = { objId ->
                 viewModel.closeDrillDown()
                 onNavigateToObject(objId)
+            },
+            onNavigateToWorkersReport = {
+                viewModel.closeDrillDown()
+                onNavigateToWorkersReport()
             }
         )
     }
@@ -910,7 +915,8 @@ private fun GlobalDrillDownBottomSheet(
     summary: GlobalFinancialSummary,
     allWorkersStats: List<WorkerStats>,
     onDismiss: () -> Unit,
-    onNavigateToObject: (String) -> Unit
+    onNavigateToObject: (String) -> Unit,
+    onNavigateToWorkersReport: () -> Unit = {}
 ) {
     val isPrivacyMode = LocalPrivacyMode.current
 
@@ -958,8 +964,8 @@ private fun GlobalDrillDownBottomSheet(
                             DrillDownCard(
                                 date = "Shartnoma: ${CurrencyFormatter.formatAmountShort(s.totalPrice, isPrivacyMode)}",
                                 mainText = s.objectName,
-                                subText = "Kutilayotgan qoldiq: ${CurrencyFormatter.formatAmountShort(s.remainingReceivable, isPrivacyMode)}",
-                                amount = s.totalClientIncome,
+                                subText = "Qoldiq tushum: ${CurrencyFormatter.formatAmountShort(s.remainingReceivable, isPrivacyMode)}",
+                                amount = s.totalReceivedIncome,
                                 amountColor = EmeraldSuccess,
                                 badgeText = "Tushum",
                                 badgeColor = EmeraldSuccess,
@@ -973,9 +979,9 @@ private fun GlobalDrillDownBottomSheet(
                     LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(summary.objectSummaries, key = { it.objectId }) { s ->
                             DrillDownCard(
-                                date = "Ish haqi: ${CurrencyFormatter.formatAmountShort(s.totalWorkerSalary + s.totalBonuses, isPrivacyMode)}",
+                                date = "Kassa chiqimi: ${CurrencyFormatter.formatAmountShort(s.totalCashOutflow, isPrivacyMode)}",
                                 mainText = s.objectName,
-                                subText = "Boshqa xarajatlar: ${CurrencyFormatter.formatAmountShort(s.totalOtherExpenses, isPrivacyMode)}",
+                                subText = "To'g'ridan-to'g'ri xarajatlar",
                                 amount = s.totalExpenses,
                                 amountColor = RoseExpense,
                                 badgeText = "Xarajat",
@@ -988,6 +994,20 @@ private fun GlobalDrillDownBottomSheet(
 
                 GlobalDrillDownType.GLOBAL_WORKER_DEBTS -> {
                     val debtWorkers = allWorkersStats.filter { it.remainingDebtToWorker > 0 }.sortedByDescending { it.remainingDebtToWorker }
+                    
+                    OutlinedButton(
+                        onClick = {
+                            onDismiss()
+                            onNavigateToWorkersReport()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Group, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Batafsil Ishchilar Hisobotiga o'tish", fontWeight = FontWeight.SemiBold)
+                    }
+
                     if (debtWorkers.isEmpty()) {
                         Text(
                             text = "Barcha ishchilarga to'lovlar to'liq amalga oshirilgan 🎉",
@@ -996,7 +1016,7 @@ private fun GlobalDrillDownBottomSheet(
                             modifier = Modifier.padding(vertical = 16.dp)
                         )
                     } else {
-                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(debtWorkers, key = { it.workerId }) { ws ->
                                 DrillDownCard(
                                     date = "${ws.workedDaysCount} kun ishlagan",
@@ -1005,7 +1025,11 @@ private fun GlobalDrillDownBottomSheet(
                                     amount = ws.remainingDebtToWorker,
                                     amountColor = RoseExpense,
                                     badgeText = "Qarz",
-                                    badgeColor = RoseExpense
+                                    badgeColor = RoseExpense,
+                                    onClick = {
+                                        onDismiss()
+                                        onNavigateToWorkersReport()
+                                    }
                                 )
                             }
                         }

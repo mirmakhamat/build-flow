@@ -70,4 +70,8 @@ class AppContainer(context: Context) {
             workerRepository = workerRepository
         )
     }
+
+    val getGlobalWorkersReportUseCase by lazy {
+        GetGlobalWorkersReportUseCase(database)
+    }
 }

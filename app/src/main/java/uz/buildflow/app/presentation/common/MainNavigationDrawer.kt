@@ -30,6 +30,7 @@ fun MainDrawerSheet(
     deviceId: String,
     onNavigateToObjects: () -> Unit,
     onNavigateToGlobalReports: () -> Unit,
+    onNavigateToGlobalWorkersReport: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onExportDatabase: () -> Unit,
     onImportDatabase: () -> Unit,
@@ -118,6 +119,13 @@ fun MainDrawerSheet(
                 title = "Kompaniya Umumiy Hisoboti",
                 subtitle = "Barcha obyektlar yig'ma tahlili",
                 onClick = onNavigateToGlobalReports
+            )
+
+            DrawerMenuItem(
+                icon = Icons.Default.Group,
+                title = "Ishchilar Umumiy Hisoboti",
+                subtitle = "Barcha ishchilar davomati va qarzlari",
+                onClick = onNavigateToGlobalWorkersReport
             )
 
             HorizontalDivider(color = BorderColor, modifier = Modifier.padding(vertical = 10.dp, horizontal = 16.dp))

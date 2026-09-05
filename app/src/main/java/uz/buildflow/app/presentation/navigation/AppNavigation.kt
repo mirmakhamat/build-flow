@@ -190,6 +190,9 @@ fun AppNavigation(
                         onNavigateToGlobalReports = {
                             navController.navigate("global_reports")
                         },
+                        onNavigateToGlobalWorkersReport = {
+                            navController.navigate("global_workers_report")
+                        },
                         onNavigateToSettings = {
                             navController.navigate("settings")
                         },
@@ -213,6 +216,23 @@ fun AppNavigation(
                     onNavigateToObject = { objId ->
                         navController.navigate("object_dashboard/$objId")
                     },
+                    onNavigateToWorkersReport = {
+                        navController.navigate("global_workers_report")
+                    },
+                    onTogglePrivacy = handleTogglePrivacy
+                )
+            }
+
+            // 1.2 ISHCHILAR UMUMIY HISOBOTI (Barcha ishchilar davomati va to'lovlari)
+            composable("global_workers_report") {
+                val viewModel: GlobalWorkersReportViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = GlobalWorkersReportViewModel.provideFactory(
+                        getGlobalWorkersReportUseCase = container.getGlobalWorkersReportUseCase
+                    )
+                )
+                GlobalWorkersReportScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() },
                     onTogglePrivacy = handleTogglePrivacy
                 )
             }

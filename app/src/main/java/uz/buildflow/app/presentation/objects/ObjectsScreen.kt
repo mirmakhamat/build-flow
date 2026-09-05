@@ -48,6 +48,7 @@ fun ObjectsScreen(
     database: AppDatabase,
     onObjectClick: (String) -> Unit,
     onNavigateToGlobalReports: () -> Unit,
+    onNavigateToGlobalWorkersReport: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onTogglePrivacy: () -> Unit = {}
 ) {
@@ -111,6 +112,10 @@ fun ObjectsScreen(
                 onNavigateToGlobalReports = {
                     coroutineScope.launch { drawerState.close() }
                     onNavigateToGlobalReports()
+                },
+                onNavigateToGlobalWorkersReport = {
+                    coroutineScope.launch { drawerState.close() }
+                    onNavigateToGlobalWorkersReport()
                 },
                 onNavigateToSettings = {
                     coroutineScope.launch { drawerState.close() }
