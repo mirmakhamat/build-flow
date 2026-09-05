@@ -2,6 +2,7 @@ package uz.buildflow.app
 
 import android.app.Application
 import uz.buildflow.app.core.database.AppDatabase
+import uz.buildflow.app.core.notification.AttendanceReminderScheduler
 import uz.buildflow.app.di.AppContainer
 
 class BuildFlowApp : Application() {
@@ -11,6 +12,10 @@ class BuildFlowApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+
+        // Bildirishnoma kanalini va davomat eslatmasini boshlaymiz
+        AttendanceReminderScheduler.createNotificationChannel(this)
+        AttendanceReminderScheduler.scheduleNextReminder(this)
     }
 
     fun recreateContainer() {
@@ -18,3 +23,4 @@ class BuildFlowApp : Application() {
         container = AppContainer(this)
     }
 }
+

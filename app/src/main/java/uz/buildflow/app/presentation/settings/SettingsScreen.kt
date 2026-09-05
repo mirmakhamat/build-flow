@@ -1,11 +1,17 @@
 package uz.buildflow.app.presentation.settings
 
+import android.Manifest
+import android.app.TimePickerDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -31,13 +37,16 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import uz.buildflow.app.BuildConfig
 import uz.buildflow.app.R
+import uz.buildflow.app.core.notification.AttendanceReminderScheduler
 import uz.buildflow.app.core.preferences.UserPreferences
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.AppLockManager
 import uz.buildflow.app.core.util.BiometricHelper
 import uz.buildflow.app.core.util.DeviceSecurityManager
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,6 +62,24 @@ fun SettingsScreen(
     val appLockTimeout by userPreferences.appLockTimeoutSeconds.collectAsState()
     val deviceId = remember { DeviceSecurityManager.getDeviceId(context) }
     val hasDeviceSecurity = remember { BiometricHelper.canAuthenticate(context) }
+
+    // Davomat eslatmasi bildirishnomasi
+    val isAttendanceReminderEnabled by userPreferences.isAttendanceReminderEnabled.collectAsState()
+    val reminderHour by userPreferences.reminderHour.collectAsState()
+    val reminderMinute by userPreferences.reminderMinute.collectAsState()
+    val reminderDays by userPreferences.reminderDays.collectAsState()
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            userPreferences.setAttendanceReminderEnabled(true)
+            AttendanceReminderScheduler.scheduleNextReminder(context)
+            Toast.makeText(context, "Bildirishnomalarga ruxsat berildi! 🔔", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Bildirishnoma yuborish uchun ruxsat berilmadi", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val companyName = stringResource(R.string.company_name)
     val supportTelegramUrl = stringResource(R.string.support_telegram_url)
@@ -269,7 +296,161 @@ fun SettingsScreen(
                 }
             }
 
-            // 3. MA'LUMOTLAR VA ZAXIRA NUSXASI
+            // 3. BILDIRISHNOMALAR VA DAVOMAT ESLATMASI
+            SettingsSectionHeader(title = "BILDIRISHNOMALAR VA DAVOMAT ESLATMASI")
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceLight)
+            ) {
+                Column {
+                    SettingsRow(
+                        icon = Icons.Default.NotificationsActive,
+                        title = "Kunlik Davomat Eslatmasi",
+                        subtitle = "Har ish kuni belgilangan vaqtda eslatma yuborish",
+                        trailing = {
+                            Switch(
+                                checked = isAttendanceReminderEnabled,
+                                onCheckedChange = { enabled ->
+                                    if (enabled) {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                            } else {
+                                                userPreferences.setAttendanceReminderEnabled(true)
+                                                AttendanceReminderScheduler.scheduleNextReminder(context)
+                                            }
+                                        } else {
+                                            userPreferences.setAttendanceReminderEnabled(true)
+                                            AttendanceReminderScheduler.scheduleNextReminder(context)
+                                        }
+                                    } else {
+                                        userPreferences.setAttendanceReminderEnabled(false)
+                                        AttendanceReminderScheduler.scheduleNextReminder(context)
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = DeepBluePrimary)
+                            )
+                        }
+                    )
+
+                    if (isAttendanceReminderEnabled) {
+                        HorizontalDivider(color = BorderColor, modifier = Modifier.padding(horizontal = 16.dp))
+
+                        // Eslatish Vaqti (TimePickerDialog)
+                        val formattedTime = String.format("%02d:%02d", reminderHour, reminderMinute)
+                        SettingsRow(
+                            icon = Icons.Default.Schedule,
+                            title = "Eslatish Vaqti",
+                            subtitle = "$formattedTime (soat:daqiqa)",
+                            onClick = {
+                                TimePickerDialog(
+                                    context,
+                                    { _, h, m ->
+                                        userPreferences.setReminderTime(h, m)
+                                        AttendanceReminderScheduler.scheduleNextReminder(context)
+                                        Toast.makeText(context, "Eslatish vaqti ${String.format("%02d:%02d", h, m)} ga o'rnatildi ⏰", Toast.LENGTH_SHORT).show()
+                                    },
+                                    reminderHour,
+                                    reminderMinute,
+                                    true
+                                ).show()
+                            }
+                        )
+
+                        HorizontalDivider(color = BorderColor, modifier = Modifier.padding(horizontal = 16.dp))
+
+                        // Hafta Kunlari
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Eslatish Kunlari (Hafta kunlari)",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "${reminderDays.size} kun tanlangan",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = DeepBluePrimary
+                                )
+                            }
+
+                            val weekDays = listOf(
+                                Calendar.MONDAY to "Du",
+                                Calendar.TUESDAY to "Se",
+                                Calendar.WEDNESDAY to "Chor",
+                                Calendar.THURSDAY to "Pay",
+                                Calendar.FRIDAY to "Jum",
+                                Calendar.SATURDAY to "Shan",
+                                Calendar.SUNDAY to "Yak"
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                weekDays.forEach { (calDay, shortLabel) ->
+                                    val isSelected = reminderDays.contains(calDay)
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            val updated = if (isSelected) {
+                                                if (reminderDays.size > 1) reminderDays - calDay else reminderDays
+                                            } else {
+                                                reminderDays + calDay
+                                            }
+                                            userPreferences.setReminderDays(updated)
+                                            AttendanceReminderScheduler.scheduleNextReminder(context)
+                                        },
+                                        label = {
+                                            Text(
+                                                text = shortLabel,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                fontSize = 12.sp
+                                            )
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = DeepBluePrimary.copy(alpha = 0.15f),
+                                            selectedLabelColor = DeepBluePrimary
+                                        ),
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(color = BorderColor, modifier = Modifier.padding(horizontal = 16.dp))
+
+                        // Test Bildirishnoma Yuborish
+                        SettingsRow(
+                            icon = Icons.Default.Campaign,
+                            title = "Test Bildirishnoma Yuborish",
+                            subtitle = "Eslatma ko'rinishi va ovozini tekshirib ko'rish",
+                            onClick = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    AttendanceReminderScheduler.showTestNotification(context)
+                                    Toast.makeText(context, "Test bildirishnoma yuborildi! 🔔", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+
+            // 4. MA'LUMOTLAR VA ZAXIRA NUSXASI
             SettingsSectionHeader(title = "MA'LUMOTLAR VA ZAXIRA (BACKUP)")
             Card(
                 modifier = Modifier.fillMaxWidth(),
