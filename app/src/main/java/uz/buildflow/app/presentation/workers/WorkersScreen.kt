@@ -86,11 +86,11 @@ fun WorkersScreen(
                         )
                     }
 
-                    // Boshqa obyektdan ishchi olib kelish (Import)
+                    // Boshqa obyektdan ishchi ko'chirish
                     IconButton(onClick = { viewModel.openImportWorkerSheet() }) {
                         Icon(
                             imageVector = Icons.Default.GroupAdd,
-                            contentDescription = "Boshqa obyektdan ishchi qo'shish",
+                            contentDescription = "Boshqa obyektdan ishchi ko'chirish",
                             tint = DeepBluePrimary
                         )
                     }
@@ -455,11 +455,11 @@ fun ImportWorkerBottomSheet(
             ) {
                 Column {
                     Text(
-                        text = "Boshqa Obyektdan Ishchi Qo'shish",
+                        text = "Ishchilarni Obyektga Ko'chirish",
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     )
                     Text(
-                        text = "Kerakli ishchilarni tanlang (bir yoki bir nechta)",
+                        text = "Boshqa obyektdan ishchilarni tanlab, ushbu obyektga o'tkazing",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -576,7 +576,7 @@ fun ImportWorkerBottomSheet(
                                             color = TextSecondary
                                         )
                                         Text(
-                                            text = "Asosiy obyekti: ${item.sourceObjectName}",
+                                            text = "Hozirgi obyekti: ${item.sourceObjectName}",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = DeepBlueLight
                                         )
@@ -588,7 +588,7 @@ fun ImportWorkerBottomSheet(
                 }
             }
 
-            // BIRIKTIRISHNI TASDIQLASH TUGMASI
+            // KO'CHIRISHNI TASDIQLASH TUGMASI
             Button(
                 onClick = {
                     val chosen = importableWorkers.map { it.worker }.filter { selectedWorkerIds.contains(it.id) }
@@ -603,10 +603,10 @@ fun ImportWorkerBottomSheet(
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess, contentColor = Color.White)
             ) {
-                Icon(imageVector = Icons.Default.PersonAddAlt1, contentDescription = null, modifier = Modifier.size(20.dp))
+                Icon(imageVector = Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (selectedWorkerIds.isEmpty()) "Ishchini tanlang" else "Tanlangan (${selectedWorkerIds.size}) ishchini qo'shish",
+                    text = if (selectedWorkerIds.isEmpty()) "Ishchini tanlang" else "Tanlangan (${selectedWorkerIds.size}) ishchini ko'chirish",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )

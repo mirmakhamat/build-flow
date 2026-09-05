@@ -3,6 +3,7 @@ package uz.buildflow.app.presentation.workers
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -44,6 +45,7 @@ data class WorkersUiState(
     val isAllPaymentsSheetOpen: Boolean = false
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class WorkersViewModel(
     private val workerRepository: WorkerRepository,
     private val objectRepository: ObjectRepository,
@@ -247,25 +249,16 @@ class WorkersViewModel(
             val targetObjectId = _uiState.value.selectedObjectId ?: return@launch
             if (sourceWorkers.isEmpty()) return@launch
 
-            sourceWorkers.forEach { sourceWorker ->
-                val newWorker = Worker(
-                    objectId = targetObjectId,
-                    name = sourceWorker.name,
-                    phone = sourceWorker.phone,
-                    position = sourceWorker.position,
-                    defaultRate = sourceWorker.defaultRate,
-                    startDate = DateUtil.today()
-                )
-                workerRepository.insertWorker(newWorker)
-            }
+            // Ishchilarni joriy obyektga ko'chiramiz (transfer) - yangi dublikat ishchi yaratilmaydi
+            workerRepository.transferWorkers(sourceWorkers.map { it.id }, targetObjectId)
 
             _uiState.update {
                 it.copy(
                     isImportSheetOpen = false,
                     successMessage = if (sourceWorkers.size == 1) {
-                        "${sourceWorkers.first().name} ushbu obyektga ham biriktirildi!"
+                        "${sourceWorkers.first().name} ushbu obyektga ko'chirildi!"
                     } else {
-                        "${sourceWorkers.size} nafar ishchi ushbu obyektga ham biriktirildi!"
+                        "${sourceWorkers.size} nafar ishchi ushbu obyektga ko'chirildi!"
                     }
                 )
             }

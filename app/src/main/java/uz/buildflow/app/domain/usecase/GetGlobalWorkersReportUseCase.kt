@@ -40,21 +40,37 @@ class GetGlobalWorkersReportUseCase(
                 )
             }
 
-            val workerFlows = workerEntities.map { workerEntity ->
+            // Ishchilarni ismi va telefoni bo'yicha guruhlaymiz (agar bitta ishchi bir nechta obyektga ko'chirilgan yoki nusxalangan bo'lsa)
+            val workerEntityMap = workerEntities.associateBy { it.id }
+            val workerGroups = workerEntities.groupBy { entity ->
+                val normName = entity.name.trim().lowercase()
+                val normPhone = entity.phone?.trim()?.filter { it.isDigit() } ?: ""
+                if (normPhone.isNotEmpty()) "$normName|$normPhone" else normName
+            }
+
+            val consolidatedWorkerFlows = workerGroups.values.map { workersInGroup ->
+                val primaryWorker = workersInGroup.maxByOrNull { it.updatedAt } ?: workersInGroup.first()
+                val workerIds = workersInGroup.map { it.id }
+
+                // Ushbu ishchining barcha id'lari bo'yicha ma'lumotlarni yig'amiz
+                val daysFlows = workerIds.map { workerDayDao.getDaysByWorker(it) }
+                val dailyBonusFlows = workerIds.map { dailyBonusDao.getBonusesByWorker(it) }
+                val generalBonusFlows = workerIds.map { generalBonusDao.getBonusesByWorker(it) }
+                val paymentFlows = workerIds.map { workerPaymentDao.getPaymentsByWorker(it) }
+
                 combine(
-                    workerDayDao.getDaysByWorker(workerEntity.id),
-                    dailyBonusDao.getBonusesByWorker(workerEntity.id),
-                    generalBonusDao.getBonusesByWorker(workerEntity.id),
-                    workerPaymentDao.getPaymentsByWorker(workerEntity.id)
-                ) { days, dailyBonuses, generalBonuses, payments ->
-                    val workedDays = days.filter { it.status == "WORKED" || it.status == "HALF_DAY" }
+                    combine(daysFlows) { it.flatMap { list -> list } },
+                    combine(dailyBonusFlows) { it.flatMap { list -> list } },
+                    combine(generalBonusFlows) { it.flatMap { list -> list } },
+                    combine(paymentFlows) { it.flatMap { list -> list } }
+                ) { allDays, allDailyBonuses, allGeneralBonuses, allPayments ->
+                    val workedDays = allDays.filter { it.status == "WORKED" || it.status == "HALF_DAY" }
                         .sortedBy { it.date }
 
-                    val bonusMap = dailyBonuses.groupBy { it.workerDayId }
+                    val bonusMap = allDailyBonuses.groupBy { it.workerDayId }
 
                     // Jami to'langan pullar
-                    val totalPaid = payments.sumOf { it.amount }
-
+                    val totalPaid = allPayments.sumOf { it.amount }
                     var remainingPool = totalPaid
 
                     val daysHistory = workedDays.map { day ->
@@ -67,11 +83,12 @@ class GetGlobalWorkersReportUseCase(
                         val remainingDebt = if (covered) 0.0 else (totalDayEarned - remainingPool).coerceAtLeast(0.0)
                         remainingPool = (remainingPool - totalDayEarned).coerceAtLeast(0.0)
 
-                        val objName = objectMap[workerEntity.objectId] ?: "Noma'lum Obyekt"
+                        val dayObjId = workerEntityMap[day.workerId]?.objectId ?: primaryWorker.objectId
+                        val objName = objectMap[dayObjId] ?: "Noma'lum Obyekt"
 
                         WorkerDayDetailRecord(
                             date = day.date,
-                            objectId = workerEntity.objectId,
+                            objectId = dayObjId,
                             objectName = objName,
                             dailyRate = day.paymentAmount,
                             bonusAmount = dayBonusSum,
@@ -83,12 +100,12 @@ class GetGlobalWorkersReportUseCase(
                     }
 
                     // Umumiy bonuslar
-                    val generalBonusTotal = generalBonuses.sumOf { it.amount }
+                    val generalBonusTotal = allGeneralBonuses.sumOf { it.amount }
                     val salaryTotal = daysHistory.sumOf { it.totalDayAmount }
                     val totalEarned = salaryTotal + generalBonusTotal
                     val balance = totalEarned - totalPaid
 
-                    val paymentsHistory = payments.sortedByDescending { it.date }.map { p ->
+                    val paymentsHistory = allPayments.sortedByDescending { it.date }.map { p ->
                         val objName = objectMap[p.objectId] ?: "Umumiy"
                         val sourceStr = if (p.payerObjectId == "OWN_POCKET") {
                             "👤 O'z hisobimdan"
@@ -106,25 +123,43 @@ class GetGlobalWorkersReportUseCase(
                         )
                     }
 
-                    val workedObjectNames = listOfNotNull(objectMap[workerEntity.objectId]).ifEmpty { listOf("Obyekt belgilanmagan") }
+                    // Obyektlar kesimidagi tahlil
+                    val allAssociatedObjectIds = buildSet {
+                        workersInGroup.forEach { add(it.objectId) }
+                        daysHistory.forEach { add(it.objectId) }
+                        allPayments.forEach { add(it.objectId) }
+                        allGeneralBonuses.forEach { add(it.objectId) }
+                    }
 
-                    val objectsBreakdown = listOf(
-                        WorkerObjectBreakdownItem(
-                            objectId = workerEntity.objectId,
-                            objectName = workedObjectNames.first(),
-                            daysCount = daysHistory.size,
-                            earnedAmount = totalEarned,
-                            paidAmount = totalPaid
-                        )
-                    )
+                    val objectsBreakdown = allAssociatedObjectIds.mapNotNull { objId ->
+                        val objName = objectMap[objId] ?: "Noma'lum Obyekt"
+                        val objDays = daysHistory.filter { it.objectId == objId }
+                        val objEarned = objDays.sumOf { it.totalDayAmount } + allGeneralBonuses.filter { it.objectId == objId }.sumOf { it.amount }
+                        val objPaid = allPayments.filter { it.objectId == objId }.sumOf { it.amount }
+
+                        if (objDays.isNotEmpty() || objEarned > 0 || objPaid > 0 || objId == primaryWorker.objectId) {
+                            WorkerObjectBreakdownItem(
+                                objectId = objId,
+                                objectName = objName,
+                                daysCount = objDays.size,
+                                earnedAmount = objEarned,
+                                paidAmount = objPaid
+                            )
+                        } else {
+                            null
+                        }
+                    }.sortedByDescending { it.earnedAmount + it.paidAmount }
+
+                    val workedObjectNames = objectsBreakdown.map { it.objectName }.distinct()
+                        .ifEmpty { listOfNotNull(objectMap[primaryWorker.objectId]).ifEmpty { listOf("Obyekt belgilanmagan") } }
 
                     WorkerGlobalReportItem(
-                        workerId = workerEntity.id,
-                        workerName = workerEntity.name,
-                        position = workerEntity.position ?: "",
-                        phone = workerEntity.phone,
-                        status = workerEntity.status,
-                        defaultRate = workerEntity.defaultRate,
+                        workerId = primaryWorker.id,
+                        workerName = primaryWorker.name,
+                        position = primaryWorker.position ?: "",
+                        phone = primaryWorker.phone,
+                        status = primaryWorker.status,
+                        defaultRate = primaryWorker.defaultRate,
                         workedDaysCount = daysHistory.size,
                         totalEarned = totalEarned,
                         totalPaid = totalPaid,
@@ -137,7 +172,7 @@ class GetGlobalWorkersReportUseCase(
                 }
             }
 
-            combine(workerFlows) { itemsArray ->
+            combine(consolidatedWorkerFlows) { itemsArray ->
                 val items = itemsArray.toList()
                 val totalEarnedAll = items.sumOf { it.totalEarned }
                 val totalPaidAll = items.sumOf { it.totalPaid }
