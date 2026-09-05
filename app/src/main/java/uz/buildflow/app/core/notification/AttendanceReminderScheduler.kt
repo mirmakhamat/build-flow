@@ -40,8 +40,7 @@ object AttendanceReminderScheduler {
     fun scheduleNextReminder(context: Context) {
         val userPreferences = UserPreferences.getInstance(context)
         val isEnabled = userPreferences.isAttendanceReminderEnabled.value
-        val hour = userPreferences.reminderHour.value
-        val minute = userPreferences.reminderMinute.value
+        val reminderTimes = userPreferences.reminderTimes.value
         val reminderDays = userPreferences.reminderDays.value
 
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
@@ -55,12 +54,12 @@ object AttendanceReminderScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        if (!isEnabled || reminderDays.isEmpty()) {
+        if (!isEnabled || reminderDays.isEmpty() || reminderTimes.isEmpty()) {
             alarmManager.cancel(pendingIntent)
             return
         }
 
-        val targetCalendar = calculateNextTriggerTime(hour, minute, reminderDays)
+        val targetCalendar = calculateNextTriggerTime(reminderTimes, reminderDays)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 alarmManager.setExactAndAllowWhileIdle(
@@ -86,31 +85,57 @@ object AttendanceReminderScheduler {
         }
     }
 
-    private fun calculateNextTriggerTime(hour: Int, minute: Int, reminderDays: Set<Int>): Calendar {
+    fun calculateNextTriggerTime(reminderTimes: List<String>, reminderDays: Set<Int>): Calendar {
         val now = Calendar.getInstance()
 
-        for (dayOffset in 0..7) {
-            val candidate = Calendar.getInstance().apply {
-                add(Calendar.DAY_OF_YEAR, dayOffset)
-                set(Calendar.HOUR_OF_DAY, hour)
-                set(Calendar.MINUTE, minute)
+        val parsedTimes = reminderTimes.mapNotNull { timeStr ->
+            val parts = timeStr.split(":")
+            if (parts.size == 2) {
+                val h = parts[0].toIntOrNull()
+                val m = parts[1].toIntOrNull()
+                if (h != null && m != null) Pair(h, m) else null
+            } else null
+        }.sortedWith(compareBy({ it.first }, { it.second }))
+
+        if (parsedTimes.isEmpty()) {
+            return Calendar.getInstance().apply {
+                add(Calendar.DAY_OF_YEAR, 1)
+                set(Calendar.HOUR_OF_DAY, 18)
+                set(Calendar.MINUTE, 0)
                 set(Calendar.SECOND, 0)
                 set(Calendar.MILLISECOND, 0)
             }
+        }
 
-            val dayOfWeek = candidate.get(Calendar.DAY_OF_WEEK)
+        for (dayOffset in 0..7) {
+            val checkDate = Calendar.getInstance().apply {
+                add(Calendar.DAY_OF_YEAR, dayOffset)
+            }
+            val dayOfWeek = checkDate.get(Calendar.DAY_OF_WEEK)
+
             if (reminderDays.contains(dayOfWeek)) {
-                if (dayOffset > 0 || candidate.after(now)) {
-                    return candidate
+                for ((h, m) in parsedTimes) {
+                    val candidate = Calendar.getInstance().apply {
+                        add(Calendar.DAY_OF_YEAR, dayOffset)
+                        set(Calendar.HOUR_OF_DAY, h)
+                        set(Calendar.MINUTE, m)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+
+                    if (candidate.after(now)) {
+                        return candidate
+                    }
                 }
             }
         }
 
-        // Agar topilmasa, ertaga shu vaqtga qo'yamiz
+        // Agar topilmasa
+        val first = parsedTimes.first()
         return Calendar.getInstance().apply {
             add(Calendar.DAY_OF_YEAR, 1)
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
+            set(Calendar.HOUR_OF_DAY, first.first)
+            set(Calendar.MINUTE, first.second)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }

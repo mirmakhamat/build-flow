@@ -12,6 +12,7 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -65,8 +66,7 @@ fun SettingsScreen(
 
     // Davomat eslatmasi bildirishnomasi
     val isAttendanceReminderEnabled by userPreferences.isAttendanceReminderEnabled.collectAsState()
-    val reminderHour by userPreferences.reminderHour.collectAsState()
-    val reminderMinute by userPreferences.reminderMinute.collectAsState()
+    val reminderTimes by userPreferences.reminderTimes.collectAsState()
     val reminderDays by userPreferences.reminderDays.collectAsState()
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -337,30 +337,7 @@ fun SettingsScreen(
                     if (isAttendanceReminderEnabled) {
                         HorizontalDivider(color = BorderColor, modifier = Modifier.padding(horizontal = 16.dp))
 
-                        // Eslatish Vaqti (TimePickerDialog)
-                        val formattedTime = String.format("%02d:%02d", reminderHour, reminderMinute)
-                        SettingsRow(
-                            icon = Icons.Default.Schedule,
-                            title = "Eslatish Vaqti",
-                            subtitle = "$formattedTime (soat:daqiqa)",
-                            onClick = {
-                                TimePickerDialog(
-                                    context,
-                                    { _, h, m ->
-                                        userPreferences.setReminderTime(h, m)
-                                        AttendanceReminderScheduler.scheduleNextReminder(context)
-                                        Toast.makeText(context, "Eslatish vaqti ${String.format("%02d:%02d", h, m)} ga o'rnatildi ⏰", Toast.LENGTH_SHORT).show()
-                                    },
-                                    reminderHour,
-                                    reminderMinute,
-                                    true
-                                ).show()
-                            }
-                        )
-
-                        HorizontalDivider(color = BorderColor, modifier = Modifier.padding(horizontal = 16.dp))
-
-                        // Hafta Kunlari
+                        // 1. Eslatish Vaqtlari (Maksimal 3 ta vaqt)
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -372,13 +349,132 @@ fun SettingsScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.Schedule, contentDescription = null, tint = DeepBluePrimary, modifier = Modifier.size(20.dp))
+                                    Text(
+                                        text = "Eslatish Vaqtlari",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = TextPrimary
+                                    )
+                                }
                                 Text(
-                                    text = "Eslatish Kunlari (Hafta kunlari)",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = TextPrimary
+                                    text = "${reminderTimes.size} / 3 ta vaqt",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (reminderTimes.size >= 3) AmberWarning else TextSecondary
                                 )
+                            }
+
+                            // Vaqt kartochkalari
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                reminderTimes.forEach { timeStr ->
+                                    val parts = timeStr.split(":")
+                                    val h = parts.getOrNull(0)?.toIntOrNull() ?: 18
+                                    val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
+
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = DeepBlueLight.copy(alpha = 0.12f),
+                                        border = BorderStroke(1.dp, DeepBluePrimary.copy(alpha = 0.3f)),
+                                        modifier = Modifier.clickable {
+                                            TimePickerDialog(
+                                                context,
+                                                { _, newH, newM ->
+                                                    val formatted = String.format("%02d:%02d", newH, newM)
+                                                    userPreferences.updateReminderTime(timeStr, formatted)
+                                                    AttendanceReminderScheduler.scheduleNextReminder(context)
+                                                },
+                                                h,
+                                                m,
+                                                true
+                                            ).show()
+                                        }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(start = 10.dp, end = if (reminderTimes.size > 1) 4.dp else 10.dp, top = 6.dp, bottom = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                text = timeStr,
+                                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = DeepBluePrimary
+                                            )
+                                            if (reminderTimes.size > 1) {
+                                                IconButton(
+                                                    onClick = {
+                                                        userPreferences.removeReminderTime(timeStr)
+                                                        AttendanceReminderScheduler.scheduleNextReminder(context)
+                                                    },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Close,
+                                                        contentDescription = "O'chirish",
+                                                        tint = TextSecondary,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (reminderTimes.size < 3) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            val defaultH = if (reminderTimes.isEmpty()) 18 else 9
+                                            TimePickerDialog(
+                                                context,
+                                                { _, newH, newM ->
+                                                    val formatted = String.format("%02d:%02d", newH, newM)
+                                                    userPreferences.addReminderTime(formatted)
+                                                    AttendanceReminderScheduler.scheduleNextReminder(context)
+                                                },
+                                                defaultH,
+                                                0,
+                                                true
+                                            ).show()
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                        modifier = Modifier.height(38.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Qo'shish", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(color = BorderColor, modifier = Modifier.padding(horizontal = 16.dp))
+
+                        // 2. Hafta Kunlari (7 kun barcha ekranga sig'adigan ixcham zamonaviy ko'rinish)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.DateRange, contentDescription = null, tint = DeepBluePrimary, modifier = Modifier.size(20.dp))
+                                    Text(
+                                        text = "Eslatish Kunlari",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = TextPrimary
+                                    )
+                                }
                                 Text(
-                                    text = "${reminderDays.size} kun tanlangan",
+                                    text = "${reminderDays.size} kun faol",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = DeepBluePrimary
                                 )
@@ -387,50 +483,64 @@ fun SettingsScreen(
                             val weekDays = listOf(
                                 Calendar.MONDAY to "Du",
                                 Calendar.TUESDAY to "Se",
-                                Calendar.WEDNESDAY to "Chor",
-                                Calendar.THURSDAY to "Pay",
-                                Calendar.FRIDAY to "Jum",
-                                Calendar.SATURDAY to "Shan",
-                                Calendar.SUNDAY to "Yak"
+                                Calendar.WEDNESDAY to "Ch",
+                                Calendar.THURSDAY to "Pa",
+                                Calendar.FRIDAY to "Ju",
+                                Calendar.SATURDAY to "Sh",
+                                Calendar.SUNDAY to "Ya"
                             )
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 weekDays.forEach { (calDay, shortLabel) ->
                                     val isSelected = reminderDays.contains(calDay)
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = {
-                                            val updated = if (isSelected) {
-                                                if (reminderDays.size > 1) reminderDays - calDay else reminderDays
-                                            } else {
-                                                reminderDays + calDay
-                                            }
-                                            userPreferences.setReminderDays(updated)
-                                            AttendanceReminderScheduler.scheduleNextReminder(context)
-                                        },
-                                        label = {
+                                    Surface(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                val updated = if (isSelected) {
+                                                    if (reminderDays.size > 1) reminderDays - calDay else reminderDays
+                                                } else {
+                                                    reminderDays + calDay
+                                                }
+                                                userPreferences.setReminderDays(updated)
+                                                AttendanceReminderScheduler.scheduleNextReminder(context)
+                                            },
+                                        color = if (isSelected) DeepBluePrimary else SurfaceVariantLight.copy(alpha = 0.7f),
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = if (isSelected) null else BorderStroke(1.dp, BorderColor)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(vertical = 10.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
                                             Text(
                                                 text = shortLabel,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                fontSize = 12.sp
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                                ),
+                                                color = if (isSelected) Color.White else TextPrimary
                                             )
-                                        },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = DeepBluePrimary.copy(alpha = 0.15f),
-                                            selectedLabelColor = DeepBluePrimary
-                                        ),
-                                        shape = RoundedCornerShape(8.dp)
-                                    )
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(4.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (isSelected) AmberWarning else Color.Transparent)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
 
                         HorizontalDivider(color = BorderColor, modifier = Modifier.padding(horizontal = 16.dp))
 
-                        // Test Bildirishnoma Yuborish
+                        // 3. Test Bildirishnoma Yuborish
                         SettingsRow(
                             icon = Icons.Default.Campaign,
                             title = "Test Bildirishnoma Yuborish",

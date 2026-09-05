@@ -1,8 +1,10 @@
 package uz.buildflow.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uz.buildflow.app.core.notification.AttendanceReminderScheduler
 import java.util.Calendar
 
 class AttendanceReminderTest {
@@ -25,10 +27,13 @@ class AttendanceReminderTest {
     }
 
     @Test
-    fun testTimeFormat() {
-        val hour = 18
-        val minute = 5
-        val formatted = String.format("%02d:%02d", hour, minute)
-        assertEquals("18:05", formatted)
+    fun testMultiTimeCalculation() {
+        val times = listOf("09:00", "18:00", "21:00")
+        val days = setOf(Calendar.MONDAY, Calendar.TUESDAY, Calendar.WEDNESDAY, Calendar.THURSDAY, Calendar.FRIDAY, Calendar.SATURDAY)
+
+        val nextCal = AttendanceReminderScheduler.calculateNextTriggerTime(times, days)
+        assertNotNull(nextCal)
+        assertTrue(nextCal.timeInMillis > System.currentTimeMillis() - 1000)
+        assertTrue(days.contains(nextCal.get(Calendar.DAY_OF_WEEK)))
     }
 }

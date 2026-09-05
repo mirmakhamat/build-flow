@@ -52,20 +52,50 @@ class UserPreferences private constructor(context: Context) {
         prefs.edit().putBoolean(KEY_ATTENDANCE_REMINDER_ENABLED, enabled).apply()
     }
 
-    // Eslatish Vaqti (Soat: 0..23, Daqiqa: 0..59)
-    private val _reminderHour = MutableStateFlow(prefs.getInt(KEY_REMINDER_HOUR, 18))
-    val reminderHour: StateFlow<Int> = _reminderHour.asStateFlow()
+    // Eslatish Vaqtlari (Ro'yxat, masalan: ["09:00", "18:00"], maksimal 3 ta)
+    private val defaultTimes = listOf("09:00", "18:00")
+    private val _reminderTimes = MutableStateFlow(
+        prefs.getString(KEY_REMINDER_TIMES_CSV, null)
+            ?.split(",")
+            ?.map { it.trim() }
+            ?.filter { it.matches(Regex("^\\d{2}:\\d{2}$")) }
+            ?.sorted()
+            ?.ifEmpty { defaultTimes }
+            ?: defaultTimes
+    )
+    val reminderTimes: StateFlow<List<String>> = _reminderTimes.asStateFlow()
 
-    private val _reminderMinute = MutableStateFlow(prefs.getInt(KEY_REMINDER_MINUTE, 0))
-    val reminderMinute: StateFlow<Int> = _reminderMinute.asStateFlow()
+    fun setReminderTimes(times: List<String>) {
+        val cleaned = times.map { it.trim() }
+            .filter { it.matches(Regex("^\\d{2}:\\d{2}$")) }
+            .distinct()
+            .sorted()
+            .take(3)
+            .ifEmpty { listOf("18:00") }
 
-    fun setReminderTime(hour: Int, minute: Int) {
-        _reminderHour.value = hour
-        _reminderMinute.value = minute
-        prefs.edit()
-            .putInt(KEY_REMINDER_HOUR, hour)
-            .putInt(KEY_REMINDER_MINUTE, minute)
-            .apply()
+        _reminderTimes.value = cleaned
+        prefs.edit().putString(KEY_REMINDER_TIMES_CSV, cleaned.joinToString(",")).apply()
+    }
+
+    fun addReminderTime(time: String) {
+        val current = _reminderTimes.value.toMutableList()
+        if (current.size < 3 && !current.contains(time)) {
+            current.add(time)
+            setReminderTimes(current)
+        }
+    }
+
+    fun removeReminderTime(time: String) {
+        val current = _reminderTimes.value.toMutableList()
+        if (current.size > 1) {
+            current.remove(time)
+            setReminderTimes(current)
+        }
+    }
+
+    fun updateReminderTime(oldTime: String, newTime: String) {
+        val current = _reminderTimes.value.map { if (it == oldTime) newTime else it }
+        setReminderTimes(current)
     }
 
     // Eslatish Kunlari (1=Yakshanba, 2=Dushanba, ... 7=Shanba)
@@ -89,8 +119,7 @@ class UserPreferences private constructor(context: Context) {
         private const val KEY_APP_LOCK_ENABLED = "key_app_lock_enabled"
         private const val KEY_APP_LOCK_TIMEOUT = "key_app_lock_timeout"
         private const val KEY_ATTENDANCE_REMINDER_ENABLED = "key_attendance_reminder_enabled"
-        private const val KEY_REMINDER_HOUR = "key_reminder_hour"
-        private const val KEY_REMINDER_MINUTE = "key_reminder_minute"
+        private const val KEY_REMINDER_TIMES_CSV = "key_reminder_times_csv"
         private const val KEY_REMINDER_DAYS = "key_reminder_days"
 
         @Volatile
