@@ -119,7 +119,9 @@ data class ObjectFinancialSummary(
     val totalExpensesPaidByOtherObjects: Double = 0.0,
     val categoryBreakdowns: List<CategoryExpenseBreakdown> = emptyList(),
     val totalWorkerCount: Int,
-    val totalWorkDaysCount: Int
+    val totalWorkDaysCount: Int,
+    // Ishchilar bo'yicha alohida hisoblangan qarz (bazadan); berilmasa umumiy formula ishlatiladi
+    val perWorkerDebt: Double? = null
 ) {
     val totalBonuses: Double
         get() = totalDailyBonuses + totalGeneralBonuses
@@ -131,7 +133,7 @@ data class ObjectFinancialSummary(
         get() = totalAccruedExpenses
 
     val totalWorkerDebt: Double
-        get() = ((totalWorkerSalary + totalBonuses) - totalPaidToWorkers).coerceAtLeast(0.0)
+        get() = perWorkerDebt ?: ((totalWorkerSalary + totalBonuses) - totalPaidToWorkers).coerceAtLeast(0.0)
 
     val remainingReceivable: Double
         get() = (totalPrice - totalClientIncome).coerceAtLeast(0.0)

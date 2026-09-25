@@ -20,6 +20,7 @@ import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.Expense
 import uz.buildflow.app.domain.model.ExpenseCategoryItem
+import uz.buildflow.app.presentation.common.AdvancedSection
 import uz.buildflow.app.presentation.common.AmountInputField
 import uz.buildflow.app.presentation.common.DatePickerField
 
@@ -103,8 +104,7 @@ fun AddExpenseSheet(
                 label = "Xarajat sanasi"
             )
 
-            // KROSS-OBYEKT: Qaysi obyekt kassasidan to'lanadi?
-            if (availableObjects.isNotEmpty()) {
+            if (availableObjects.size > 1) AdvancedSection(title = "Boshqa obyekt kassasidan to'lash", initiallyExpanded = selectedPayerObjectId != null) {
                 val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
                 val currentObj = availableObjects.find { it.id == currentObjectId }
                 val displayName = selectedObj?.name ?: "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"

@@ -32,10 +32,11 @@ class WorkerRepositoryImpl(private val workerDao: WorkerDao) : WorkerRepository 
     override fun getActiveWorkerCount(objectId: String): Flow<Int> =
         workerDao.getActiveWorkerCount(objectId)
 
+    override fun getTotalWorkerDebtByObject(objectId: String): Flow<Double> =
+        workerDao.getTotalWorkerDebtByObject(objectId)
+
     override suspend fun insertWorker(worker: Worker) = workerDao.insertWorker(worker.toEntity())
     override suspend fun updateWorker(worker: Worker) = workerDao.updateWorker(worker.toEntity())
-    override suspend fun transferWorkers(workerIds: List<String>, targetObjectId: String) =
-        workerDao.transferWorkers(workerIds, targetObjectId)
     override suspend fun deleteWorker(worker: Worker) = workerDao.deleteWorker(worker.toEntity())
 }
 
@@ -141,6 +142,9 @@ class ExpenseRepositoryImpl(private val expenseDao: ExpenseDao) : ExpenseReposit
 
     override fun getTotalExpensesPaidForOtherObjects(objectId: String): Flow<Double> =
         expenseDao.getTotalExpensesPaidForOtherObjects(objectId)
+
+    override fun getExpensesPaidForOtherObjects(objectId: String): Flow<List<Expense>> =
+        expenseDao.getExpensesPaidForOtherObjects(objectId).map { list -> list.map { it.toDomain() } }
 
     override fun getTotalExpensesPaidByOtherObjects(objectId: String): Flow<Double> =
         expenseDao.getTotalExpensesPaidByOtherObjects(objectId)

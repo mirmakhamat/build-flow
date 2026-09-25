@@ -25,6 +25,7 @@ import uz.buildflow.app.core.theme.SurfaceVariantLight
 import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.MoneyTransaction
+import uz.buildflow.app.presentation.common.AdvancedSection
 import uz.buildflow.app.presentation.common.AmountInputField
 import uz.buildflow.app.presentation.common.DatePickerField
 
@@ -101,81 +102,86 @@ fun AddIncomeSheet(
                 }
             }
 
-            // MANBA TURI: MIJOZDAN TO'LOV YOKI BOSHQA OBYEKT KASSASIDAN O'TKAZMA
-            if (!isEditMode) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = sourceType == IncomeSourceType.CLIENT,
-                        onClick = { sourceType = IncomeSourceType.CLIENT },
-                        label = { Text("Mijozdan to'lov") },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp))
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    FilterChip(
-                        selected = sourceType == IncomeSourceType.INTER_OBJECT_TRANSFER,
-                        onClick = { sourceType = IncomeSourceType.INTER_OBJECT_TRANSFER },
-                        label = { Text("Kassalararo o'tkazma") },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(16.dp))
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            // AGAR KASSALARARO O'TKAZMA BO'LSA - QAYSI OBYEKT KASSASIDAN PUL OLINMOQDA?
-            if (sourceType == IncomeSourceType.INTER_OBJECT_TRANSFER && otherObjects.isNotEmpty()) {
-                val selectedSourceObj = otherObjects.find { it.id == selectedSourceObjectId }
-
-                ExposedDropdownMenuBox(
-                    expanded = isDropdownExpanded,
-                    onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = selectedSourceObj?.name ?: "Chiqim qilinadigan obyektni tanlang",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Pul qaysi obyekt kassasidan olinmoqda?") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    ExposedDropdownMenu(
-                        expanded = isDropdownExpanded,
-                        onDismissRequest = { isDropdownExpanded = false }
+            // Odatda pul mijozdan tushadi; boshqa obyekt kassasidan o'tkazma - kamdan-kam, shuning uchun yig'ilgan
+            if (otherObjects.isNotEmpty()) AdvancedSection(
+                title = "Boshqa obyekt kassasidan o'tkazma",
+                initiallyExpanded = sourceType == IncomeSourceType.INTER_OBJECT_TRANSFER
+            ) {
+                if (!isEditMode) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        otherObjects.forEach { objItem ->
-                            DropdownMenuItem(
-                                text = { Text(objItem.name) },
-                                onClick = {
-                                    selectedSourceObjectId = objItem.id
-                                    isDropdownExpanded = false
-                                }
-                            )
-                        }
+                        FilterChip(
+                            selected = sourceType == IncomeSourceType.CLIENT,
+                            onClick = { sourceType = IncomeSourceType.CLIENT },
+                            label = { Text("Mijozdan to'lov") },
+                            leadingIcon = {
+                                Icon(imageVector = Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp))
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        FilterChip(
+                            selected = sourceType == IncomeSourceType.INTER_OBJECT_TRANSFER,
+                            onClick = { sourceType = IncomeSourceType.INTER_OBJECT_TRANSFER },
+                            label = { Text("Kassalararo o'tkazma") },
+                            leadingIcon = {
+                                Icon(imageVector = Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(16.dp))
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
 
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = DeepBluePrimary.copy(alpha = 0.08f))
-                ) {
-                    Text(
-                        text = "💡 Eslatma: Ushbu summa tanlangan obyekt kassasidan Chiqim (Xarajat), ushbu joriy obyektga esa Kirim bo'lib yoziladi. Ikkala tomon o'zaro bog'lanadi.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = DeepBluePrimary,
-                        modifier = Modifier.padding(10.dp)
-                    )
+                // AGAR KASSALARARO O'TKAZMA BO'LSA - QAYSI OBYEKT KASSASIDAN PUL OLINMOQDA?
+                if (sourceType == IncomeSourceType.INTER_OBJECT_TRANSFER && otherObjects.isNotEmpty()) {
+                    val selectedSourceObj = otherObjects.find { it.id == selectedSourceObjectId }
+
+                    ExposedDropdownMenuBox(
+                        expanded = isDropdownExpanded,
+                        onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedSourceObj?.name ?: "Chiqim qilinadigan obyektni tanlang",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Pul qaysi obyekt kassasidan olinmoqda?") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = isDropdownExpanded,
+                            onDismissRequest = { isDropdownExpanded = false }
+                        ) {
+                            otherObjects.forEach { objItem ->
+                                DropdownMenuItem(
+                                    text = { Text(objItem.name) },
+                                    onClick = {
+                                        selectedSourceObjectId = objItem.id
+                                        isDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = DeepBluePrimary.copy(alpha = 0.08f))
+                    ) {
+                        Text(
+                            text = "💡 Eslatma: Ushbu summa tanlangan obyekt kassasidan Chiqim (Xarajat), ushbu joriy obyektga esa Kirim bo'lib yoziladi. Ikkala tomon o'zaro bog'lanadi.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = DeepBluePrimary,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
                 }
             }
 

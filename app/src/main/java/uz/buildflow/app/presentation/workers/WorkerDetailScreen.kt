@@ -29,6 +29,7 @@ import uz.buildflow.app.core.util.CalendarDayItem
 import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.*
+import uz.buildflow.app.presentation.common.AdvancedSection
 import uz.buildflow.app.presentation.common.AmountInputField
 import uz.buildflow.app.presentation.common.DatePickerField
 import uz.buildflow.app.presentation.common.MetricCard
@@ -695,53 +696,54 @@ fun DayDetailBottomSheet(
                             label = "Kunlik stavka"
                         )
 
-                        DatePickerField(
-                            value = actualPaymentDate,
-                            onDateSelected = { actualPaymentDate = it },
-                            label = "Pul berilgan sana (agar bugun berilsa)"
-                        )
+                        AdvancedSection(title = "Qo'shimcha: to'lov sanasi va kassa", initiallyExpanded = false) {
+                            DatePickerField(
+                                value = actualPaymentDate,
+                                onDateSelected = { actualPaymentDate = it },
+                                label = "Pul berilgan sana (agar bugun berilsa)"
+                            )
 
-                        // KROSS-OBYEKT KASSA SELEKTORI
-                        if (availableObjects.isNotEmpty()) {
-                            val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
-                            val currentObj = availableObjects.find { it.id == currentObjectId }
-                            val displayName = selectedObj?.name ?: "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"
+                            if (availableObjects.size > 1) {
+                                val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
+                                val currentObj = availableObjects.find { it.id == currentObjectId }
+                                val displayName = selectedObj?.name ?: "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"
 
-                            ExposedDropdownMenuBox(
-                                expanded = isObjectMenuExpanded,
-                                onExpandedChange = { isObjectMenuExpanded = !isObjectMenuExpanded }
-                            ) {
-                                OutlinedTextField(
-                                    value = displayName,
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    label = { Text("To'lov manbasi (Obyekt kassasi)") },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isObjectMenuExpanded) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .menuAnchor(),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-
-                                ExposedDropdownMenu(
+                                ExposedDropdownMenuBox(
                                     expanded = isObjectMenuExpanded,
-                                    onDismissRequest = { isObjectMenuExpanded = false }
+                                    onExpandedChange = { isObjectMenuExpanded = !isObjectMenuExpanded }
                                 ) {
-                                    DropdownMenuItem(
-                                        text = { Text("${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)") },
-                                        onClick = {
-                                            selectedPayerObjectId = null
-                                            isObjectMenuExpanded = false
-                                        }
+                                    OutlinedTextField(
+                                        value = displayName,
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        label = { Text("To'lov manbasi (Obyekt kassasi)") },
+                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isObjectMenuExpanded) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .menuAnchor(),
+                                        shape = RoundedCornerShape(12.dp)
                                     )
-                                    availableObjects.filter { it.id != currentObjectId }.forEach { objItem ->
+
+                                    ExposedDropdownMenu(
+                                        expanded = isObjectMenuExpanded,
+                                        onDismissRequest = { isObjectMenuExpanded = false }
+                                    ) {
                                         DropdownMenuItem(
-                                            text = { Text("${objItem.name} kassasidan") },
+                                            text = { Text("${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)") },
                                             onClick = {
-                                                selectedPayerObjectId = objItem.id
+                                                selectedPayerObjectId = null
                                                 isObjectMenuExpanded = false
                                             }
                                         )
+                                        availableObjects.filter { it.id != currentObjectId }.forEach { objItem ->
+                                            DropdownMenuItem(
+                                                text = { Text("${objItem.name} kassasidan") },
+                                                onClick = {
+                                                    selectedPayerObjectId = objItem.id
+                                                    isObjectMenuExpanded = false
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1138,8 +1140,7 @@ fun AddBonusBottomSheet(
                 label = "Bonus summasi (so'm)"
             )
 
-            // KROSS-OBYEKT KASSA SELEKTORI
-            if (availableObjects.isNotEmpty()) {
+            if (availableObjects.size > 1) AdvancedSection(title = "Boshqa obyekt kassasidan to'lash", initiallyExpanded = selectedPayerObjectId != null) {
                 val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
                 val currentObj = availableObjects.find { it.id == currentObjectId }
                 val displayName = selectedObj?.name ?: "${currentObj?.name ?: "Ushbu obyekt"} (O'z kassasidan)"

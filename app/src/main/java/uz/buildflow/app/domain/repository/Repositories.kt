@@ -16,9 +16,9 @@ interface WorkerRepository {
     fun getWorkersByObject(objectId: String): Flow<List<Worker>>
     fun getWorkerById(id: String): Flow<Worker?>
     fun getActiveWorkerCount(objectId: String): Flow<Int>
+    fun getTotalWorkerDebtByObject(objectId: String): Flow<Double>
     suspend fun insertWorker(worker: Worker)
     suspend fun updateWorker(worker: Worker)
-    suspend fun transferWorkers(workerIds: List<String>, targetObjectId: String)
     suspend fun deleteWorker(worker: Worker)
 }
 
@@ -60,6 +60,7 @@ interface ExpenseRepository {
     fun getTotalTransfersOutByObject(objectId: String): Flow<Double>
     fun getTotalCashExpensePaidByObject(objectId: String): Flow<Double>
     fun getTotalExpensesPaidForOtherObjects(objectId: String): Flow<Double>
+    fun getExpensesPaidForOtherObjects(objectId: String): Flow<List<Expense>>
     fun getTotalExpensesPaidByOtherObjects(objectId: String): Flow<Double>
     fun getExpenseSumByCategory(objectId: String, category: String): Flow<Double>
     fun getCategoryBreakdowns(objectId: String): Flow<List<CategoryExpenseBreakdown>>

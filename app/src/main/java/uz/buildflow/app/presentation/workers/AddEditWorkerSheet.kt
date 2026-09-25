@@ -66,8 +66,10 @@ fun AddEditWorkerSheet(
                 }
             }
 
-            // Obyekt tanlash (agar 2 yoki undan ortiq bo'lsa)
-            if (availableObjects.size > 1) {
+            // Obyekt tanlash (faqat yangi ishchi uchun). Mavjud ishchining obyektini almashtirish
+            // uning kunlari/bonuslarini yangi obyektga olib o'tadi, to'lovlari esa eskisida qoladi.
+            // Boshqa obyektga "Import" orqali alohida yozuv sifatida qo'shiladi.
+            if (existingWorker == null && availableObjects.size > 1) {
                 Text(text = "Obyektni tanlang", style = MaterialTheme.typography.labelMedium)
                 Row(
                     modifier = Modifier.fillMaxWidth(),

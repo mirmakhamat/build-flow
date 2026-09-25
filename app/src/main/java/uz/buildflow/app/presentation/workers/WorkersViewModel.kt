@@ -106,7 +106,8 @@ class WorkersViewModel(
             }.collect { list ->
                 _uiState.update {
                     it.copy(
-                        workers = list,
+                        // Nofaol (boshqa obyektga o'tgan) ishchilar ro'yxat oxirida
+                        workers = list.sortedBy { item -> item.worker.status != uz.buildflow.app.domain.model.WorkerStatus.ACTIVE },
                         isLoading = false,
                         isRefreshing = false
                     )
@@ -120,7 +121,9 @@ class WorkersViewModel(
         viewModelScope.launch {
             val currentObjId = _uiState.value.selectedObjectId ?: return@launch
             val allObjects = _uiState.value.availableObjects.associateBy { it.id }
-            val currentWorkerNames = _uiState.value.workers.map { it.worker.name.trim().lowercase() }.toSet()
+            val currentWorkerNames = _uiState.value.workers
+                .filter { it.worker.status == uz.buildflow.app.domain.model.WorkerStatus.ACTIVE }
+                .map { it.worker.name.trim().lowercase() }.toSet()
 
             workerRepository.getAllWorkers().firstOrNull()?.let { allWorkers ->
                 // Faqat boshqa obyektga tegishli bo'lgan va ushbu obyektda hali yo'q bo'lgan ishchilar
@@ -207,7 +210,6 @@ class WorkersViewModel(
             val selected = _uiState.value.selectedWorker
             if (selected != null) {
                 val updated = selected.copy(
-                    objectId = objectId,
                     name = name,
                     phone = phone,
                     position = position,

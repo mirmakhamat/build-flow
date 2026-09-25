@@ -59,11 +59,14 @@ object DatabaseBackupHelper {
         }
     }
 
-    fun importDatabase(context: Context, sourceUri: Uri, onSuccess: () -> Unit) {
+    fun importDatabase(context: Context, database: AppDatabase, sourceUri: Uri) {
         try {
             val currentDbPath = context.getDatabasePath("buildflow.db")
             val walFile = File(currentDbPath.path + "-wal")
             val shmFile = File(currentDbPath.path + "-shm")
+
+            // Ochiq Room ulanishi ustiga yozilmasligi uchun avval bazani yopamiz
+            database.close()
 
             // Eski WAL va SHM fayllarni o'chirish
             if (walFile.exists()) walFile.delete()
@@ -75,8 +78,13 @@ object DatabaseBackupHelper {
                 }
             }
 
-            Toast.makeText(context, "Baza muvaffaqiyatli tiklandi! Ilova yangilanmoqda...", Toast.LENGTH_SHORT).show()
-            onSuccess()
+            Toast.makeText(context, "Baza muvaffaqiyatli tiklandi! Ilova qayta ishga tushmoqda...", Toast.LENGTH_SHORT).show()
+
+            // Room singleton yopilgan, shuning uchun jarayonni to'liq qayta ishga tushiramiz
+            val restartIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            restartIntent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            restartIntent?.let { context.startActivity(it) }
+            Runtime.getRuntime().exit(0)
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(context, "Tiklashda xatolik: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
