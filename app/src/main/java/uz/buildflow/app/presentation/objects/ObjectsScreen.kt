@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CurrencyFormatter
+import uz.buildflow.app.core.database.AppDatabase
 import uz.buildflow.app.core.util.DatabaseBackupHelper
 import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.BuildObject
@@ -43,9 +44,7 @@ fun ObjectsScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            DatabaseBackupHelper.importDatabase(context, uri) {
-                viewModel.refresh()
-            }
+            DatabaseBackupHelper.importDatabase(context, AppDatabase.getInstance(context), uri)
         }
     }
 

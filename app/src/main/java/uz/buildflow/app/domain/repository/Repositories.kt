@@ -18,7 +18,6 @@ interface WorkerRepository {
     fun getActiveWorkerCount(objectId: String): Flow<Int>
     suspend fun insertWorker(worker: Worker)
     suspend fun updateWorker(worker: Worker)
-    suspend fun transferWorkers(workerIds: List<String>, targetObjectId: String)
     suspend fun deleteWorker(worker: Worker)
 }
 

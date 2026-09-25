@@ -207,7 +207,6 @@ class WorkersViewModel(
             val selected = _uiState.value.selectedWorker
             if (selected != null) {
                 val updated = selected.copy(
-                    objectId = objectId,
                     name = name,
                     phone = phone,
                     position = position,
