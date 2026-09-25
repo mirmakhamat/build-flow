@@ -22,8 +22,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.CurrencyFormatter
+import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.Worker
+import uz.buildflow.app.domain.model.WorkerStatus
 import uz.buildflow.app.presentation.common.EmptyStateView
+import uz.buildflow.app.presentation.common.OverflowAction
+import uz.buildflow.app.presentation.common.OverflowMenu
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,15 +75,6 @@ fun WorkersScreen(
                     }
                 },
                 actions = {
-                    // Boshqa obyektdan ishchi olib kelish (Import)
-                    IconButton(onClick = { viewModel.openImportWorkerSheet() }) {
-                        Icon(
-                            imageVector = Icons.Default.GroupAdd,
-                            contentDescription = "Boshqa obyektdan ishchi qo'shish",
-                            tint = DeepBluePrimary
-                        )
-                    }
-
                     if (!uiState.selectedObjectId.isNullOrBlank()) {
                         IconButton(onClick = onBatchAttendanceClick) {
                             Icon(
@@ -97,6 +92,12 @@ fun WorkersScreen(
                             tint = DeepBluePrimary
                         )
                     }
+                    OverflowMenu(
+                        actions = listOf(
+                            // Boshqa obyektdagi ishchini shu obyektga alohida yozuv sifatida qo'shish
+                            OverflowAction("Boshqa obyektdan ishchi qo'shish", Icons.Default.GroupAdd) { viewModel.openImportWorkerSheet() }
+                        )
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceLight)
             )
@@ -122,7 +123,7 @@ fun WorkersScreen(
                 if (uiState.workers.isEmpty() && !uiState.isLoading) {
                     EmptyStateView(
                         title = "Ishchilar mavjud emas",
-                        description = "Yangi ishchi qo'shish uchun pastdagi '+' tugmasini, boshqa obyektdagi ishchini jalb qilish uchun yuqoridagi guruh belgisini bosing.",
+                        description = "Yangi ishchi qo'shish uchun pastdagi '+' tugmasini bosing. Boshqa obyektdagi ishchini qo'shish: yuqoridagi ⋮ menyu.",
                         icon = Icons.Default.Engineering,
                         modifier = Modifier.weight(1f)
                     )
@@ -207,8 +208,15 @@ fun WorkerCard(
                 Text(
                     text = worker.name,
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = TextPrimary
+                    color = if (worker.status == WorkerStatus.ACTIVE) TextPrimary else TextMuted
                 )
+                if (worker.status != WorkerStatus.ACTIVE) {
+                    Text(
+                        text = "Nofaol · bu obyektdagi ishi ${worker.endDate?.let { DateUtil.formatToDisplay(it) } ?: ""} gacha",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMuted
+                    )
+                }
                 Text(
                     text = "${worker.position ?: "Ishchi"} · ${CurrencyFormatter.formatAmountShort(worker.defaultRate)} / kun",
                     style = MaterialTheme.typography.bodyMedium,

@@ -28,6 +28,8 @@ import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.ObjectStatus
 import uz.buildflow.app.presentation.common.EmptyStateView
+import uz.buildflow.app.presentation.common.OverflowAction
+import uz.buildflow.app.presentation.common.OverflowMenu
 import uz.buildflow.app.presentation.common.StatusBadge
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,6 +50,24 @@ fun ObjectsScreen(
         }
     }
 
+    var isImportConfirmOpen by remember { mutableStateOf(false) }
+    if (isImportConfirmOpen) {
+        AlertDialog(
+            onDismissRequest = { isImportConfirmOpen = false },
+            title = { Text("Bazani tiklash") },
+            text = { Text("Joriy barcha ma'lumotlar tanlangan zaxira fayl bilan almashtiriladi va ilova qayta ishga tushadi. Davom etasizmi?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    isImportConfirmOpen = false
+                    filePickerLauncher.launch("*/*")
+                }) { Text("Faylni tanlash") }
+            },
+            dismissButton = {
+                TextButton(onClick = { isImportConfirmOpen = false }) { Text("Bekor qilish") }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -64,20 +84,6 @@ fun ObjectsScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { filePickerLauncher.launch("*/*") }) {
-                        Icon(
-                            imageVector = Icons.Default.FileUpload,
-                            contentDescription = "Zaxira Nusxadan Tiklash (Import DB)",
-                            tint = DeepBluePrimary
-                        )
-                    }
-                    IconButton(onClick = onExportDatabase) {
-                        Icon(
-                            imageVector = Icons.Default.SaveAlt,
-                            contentDescription = "Baza Nusxasini Yuklab Olish (Backup / Eksport)",
-                            tint = DeepBluePrimary
-                        )
-                    }
                     IconButton(onClick = { viewModel.refresh() }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -85,6 +91,12 @@ fun ObjectsScreen(
                             tint = DeepBluePrimary
                         )
                     }
+                    OverflowMenu(
+                        actions = listOf(
+                            OverflowAction("Zaxira nusxa olish (Eksport)", Icons.Default.SaveAlt, onExportDatabase),
+                            OverflowAction("Zaxiradan tiklash (Import)", Icons.Default.FileUpload) { isImportConfirmOpen = true }
+                        )
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceLight)
             )

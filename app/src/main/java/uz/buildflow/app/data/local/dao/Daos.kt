@@ -41,6 +41,19 @@ interface WorkerDao {
     @Query("SELECT COUNT(*) FROM workers WHERE object_id = :objectId AND status = 'ACTIVE'")
     fun getActiveWorkerCount(objectId: String): Flow<Int>
 
+    // Har bir ishchining qarzi alohida hisoblanadi: bir ishchiga ortiqcha to'lov boshqasining qarzini yopmaydi
+    @Query("""
+        SELECT COALESCE(SUM(CASE WHEN debt > 0 THEN debt ELSE 0 END), 0.0) FROM (
+            SELECT
+                (SELECT COALESCE(SUM(wd.payment_amount), 0.0) FROM worker_days wd WHERE wd.worker_id = w.id)
+              + (SELECT COALESCE(SUM(db.amount), 0.0) FROM daily_bonuses db WHERE db.worker_id = w.id)
+              + (SELECT COALESCE(SUM(gb.amount), 0.0) FROM general_bonuses gb WHERE gb.worker_id = w.id)
+              - (SELECT COALESCE(SUM(wp.amount), 0.0) FROM worker_payments wp WHERE wp.worker_id = w.id) AS debt
+            FROM workers w WHERE w.object_id = :objectId
+        )
+    """)
+    fun getTotalWorkerDebtByObject(objectId: String): Flow<Double>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWorker(worker: WorkerEntity)
 
@@ -176,6 +189,9 @@ interface ExpenseDao {
 
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM expenses WHERE payer_object_id = :objectId AND object_id != :objectId")
     fun getTotalExpensesPaidForOtherObjects(objectId: String): Flow<Double>
+
+    @Query("SELECT * FROM expenses WHERE payer_object_id = :objectId AND object_id != :objectId ORDER BY date DESC, created_at DESC")
+    fun getExpensesPaidForOtherObjects(objectId: String): Flow<List<ExpenseEntity>>
 
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM expenses WHERE object_id = :objectId AND payer_object_id IS NOT NULL AND payer_object_id != :objectId")
     fun getTotalExpensesPaidByOtherObjects(objectId: String): Flow<Double>

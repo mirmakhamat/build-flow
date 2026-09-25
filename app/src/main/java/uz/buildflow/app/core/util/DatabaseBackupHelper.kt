@@ -83,7 +83,7 @@ object DatabaseBackupHelper {
             // Room singleton yopilgan, shuning uchun jarayonni to'liq qayta ishga tushiramiz
             val restartIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
             restartIntent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            context.startActivity(restartIntent)
+            restartIntent?.let { context.startActivity(it) }
             Runtime.getRuntime().exit(0)
         } catch (e: Exception) {
             e.printStackTrace()
