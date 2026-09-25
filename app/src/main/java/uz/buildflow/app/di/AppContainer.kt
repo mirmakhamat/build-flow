@@ -74,4 +74,16 @@ class AppContainer(context: Context) {
     val getGlobalWorkersReportUseCase by lazy {
         GetGlobalWorkersReportUseCase(database)
     }
+
+    val mergeWorkersUseCase by lazy {
+        MergeWorkersUseCase(database)
+    }
+
+    val transferWorkerUseCase by lazy {
+        TransferWorkerUseCase(database)
+    }
+
+    val detectDuplicateWorkersUseCase by lazy {
+        DetectDuplicateWorkersUseCase(database)
+    }
 }

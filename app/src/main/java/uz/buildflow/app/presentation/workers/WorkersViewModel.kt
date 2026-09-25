@@ -14,6 +14,7 @@ import uz.buildflow.app.domain.repository.TransactionRepository
 import uz.buildflow.app.domain.repository.WorkerDayRepository
 import uz.buildflow.app.domain.repository.WorkerRepository
 import uz.buildflow.app.domain.usecase.GetWorkerStatsUseCase
+import uz.buildflow.app.domain.usecase.TransferWorkerUseCase
 
 data class WorkerWithStats(
     val worker: Worker,
@@ -52,6 +53,7 @@ class WorkersViewModel(
     private val transactionRepository: TransactionRepository,
     private val workerDayRepository: WorkerDayRepository,
     private val getWorkerStatsUseCase: GetWorkerStatsUseCase,
+    private val transferWorkerUseCase: TransferWorkerUseCase,
     initialObjectId: String? = null
 ) : ViewModel() {
 
@@ -107,7 +109,7 @@ class WorkersViewModel(
                     flowOf(emptyList())
                 } else {
                     val statsFlows = workerList.map { w ->
-                        getWorkerStatsUseCase(w.id).map { stats ->
+                        getWorkerStatsUseCase(w.id, objectId).map { stats ->
                             WorkerWithStats(w, stats)
                         }
                     }
@@ -182,9 +184,17 @@ class WorkersViewModel(
 
                     var remainingBudget = amount
 
-                    // 2. Ishchining to'lanmagan ochiq kunlarini eng eski kundan boshlab yopamiz
+                    // 2. Ishchining SHU OBYEKTDAGI to'lanmagan ochiq kunlarini eng eski kundan boshlab yopamiz
+                    // (boshqa obyektdagi qarzi shu yerdagi to'lov bilan yopilib ketmasligi kerak)
+                    val fallbackObjectId = _uiState.value.workers
+                        .find { it.worker.id == workerId }?.worker?.objectId
+                        ?: targetObjectId
                     val unpaidDays = workerDayRepository.getDaysByWorker(workerId).first()
-                        .filter { it.paymentStatus == PaymentStatus.UNPAID && it.paymentAmount > 0 }
+                        .filter {
+                            it.paymentStatus == PaymentStatus.UNPAID &&
+                                it.paymentAmount > 0 &&
+                                (it.objectId ?: fallbackObjectId) == targetObjectId
+                        }
                         .sortedBy { it.date }
 
                     for (unpaidDay in unpaidDays) {
@@ -218,14 +228,13 @@ class WorkersViewModel(
     // BOSHQA OBYEKTDAN ISHCHILARNI OLIB KELISH (IMPORT)
     fun openImportWorkerSheet() {
         viewModelScope.launch {
-            val currentObjId = _uiState.value.selectedObjectId ?: return@launch
             val allObjects = _uiState.value.availableObjects.associateBy { it.id }
-            val currentWorkerNames = _uiState.value.workers.map { it.worker.name.trim().lowercase() }.toSet()
+            val currentWorkerIds = _uiState.value.workers.map { it.worker.id }.toSet()
 
             workerRepository.getAllWorkers().firstOrNull()?.let { allWorkers ->
                 val candidates = allWorkers
-                    .filter { it.objectId != currentObjId && !currentWorkerNames.contains(it.name.trim().lowercase()) }
-                    .distinctBy { it.name.trim().lowercase() }
+                    .filter { !currentWorkerIds.contains(it.id) }
+                    .distinctBy { it.id }
                     .map { w ->
                         val objName = allObjects[w.objectId]?.name ?: "Boshqa obyekt"
                         ImportableWorkerItem(worker = w, sourceObjectName = objName)
@@ -249,8 +258,13 @@ class WorkersViewModel(
             val targetObjectId = _uiState.value.selectedObjectId ?: return@launch
             if (sourceWorkers.isEmpty()) return@launch
 
-            // Ishchilarni joriy obyektga ko'chiramiz (transfer) - yangi dublikat ishchi yaratilmaydi
-            workerRepository.transferWorkers(sourceWorkers.map { it.id }, targetObjectId)
+            // Ishchini joriy obyektga KO'CHIRAMIZ: bundan buyon asosiy obyekti shu bo'ladi,
+            // lekin eski obyektdagi tarixi/qarzi saqlanadi va u yerda ham ko'rinishda qoladi
+            // (TransferWorkerUseCase orqali - object_id yozilmagan eski kunlarni eski obyektga
+            // muhrlab, keyin asosiy obyektni almashtiradi).
+            sourceWorkers.forEach { worker ->
+                transferWorkerUseCase(worker.id, targetObjectId)
+            }
 
             _uiState.update {
                 it.copy(
@@ -295,6 +309,11 @@ class WorkersViewModel(
         viewModelScope.launch {
             val selected = _uiState.value.selectedWorker
             if (selected != null) {
+                if (selected.objectId != objectId) {
+                    // Obyekti o'zgargan bo'lsa - to'g'ridan-to'g'ri UPDATE emas, balki
+                    // eski obyektdagi tarixi/qarzini saqlab qoluvchi ko'chirish orqali o'tkazamiz
+                    transferWorkerUseCase(selected.id, objectId)
+                }
                 val updated = selected.copy(
                     objectId = objectId,
                     name = name,
@@ -327,6 +346,7 @@ class WorkersViewModel(
             transactionRepository: TransactionRepository,
             workerDayRepository: WorkerDayRepository,
             getWorkerStatsUseCase: GetWorkerStatsUseCase,
+            transferWorkerUseCase: TransferWorkerUseCase,
             initialObjectId: String? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -337,6 +357,7 @@ class WorkersViewModel(
                     transactionRepository,
                     workerDayRepository,
                     getWorkerStatsUseCase,
+                    transferWorkerUseCase,
                     initialObjectId
                 ) as T
             }

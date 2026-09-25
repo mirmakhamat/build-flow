@@ -139,32 +139,57 @@ class GetWorkerStatsUseCase(
     private val workerDayRepository: WorkerDayRepository,
     private val transactionRepository: TransactionRepository
 ) {
-    operator fun invoke(workerId: String): Flow<WorkerStats?> {
+    /**
+     * [objectId] null yoki bo'sh bo'lsa - ishchining BARCHA obyektlardagi umumiy statistikasi qaytadi
+     * (masalan Global hisobot yoki dublikatlarni aniqlash uchun).
+     * [objectId] berilsa - faqat shu obyektga tegishli kun/bonus/to'lov yozuvlari hisoblanadi,
+     * shunda bitta ishchining boshqa obyektdagi qarzi/avansi bu obyekt raqamlariga aralashib ketmaydi.
+     */
+    operator fun invoke(workerId: String, objectId: String? = null): Flow<WorkerStats?> {
+        val effectiveObjectId = objectId?.takeIf { it.isNotBlank() }
         return combine(
             workerRepository.getWorkerById(workerId),
-            workerDayRepository.getTotalSalaryByWorker(workerId),
-            workerDayRepository.getTotalDailyBonusesByWorker(workerId),
-            workerDayRepository.getTotalGeneralBonusesByWorker(workerId),
-            transactionRepository.getTotalPaidByWorker(workerId),
-            workerDayRepository.getWorkedDaysCountByWorker(workerId)
-        ) { array ->
-            val worker = array[0] as? Worker ?: return@combine null
-            val salary = array[1] as? Double ?: 0.0
-            val dailyBonus = array[2] as? Double ?: 0.0
-            val generalBonus = array[3] as? Double ?: 0.0
-            val paid = array[4] as? Double ?: 0.0
-            val daysCount = array[5] as? Int ?: 0
+            workerDayRepository.getDaysByWorker(workerId),
+            workerDayRepository.getDailyBonusesByWorker(workerId),
+            workerDayRepository.getGeneralBonusesByWorker(workerId),
+            transactionRepository.getPaymentsByWorker(workerId)
+        ) { worker, days, dailyBonuses, generalBonuses, payments ->
+            worker ?: return@combine null
+
+            val scopedDays = if (effectiveObjectId == null) {
+                days
+            } else {
+                days.filter { (it.objectId ?: worker.objectId) == effectiveObjectId }
+            }
+            val scopedDayIds = scopedDays.map { it.id }.toSet()
+            val scopedDailyBonuses = if (effectiveObjectId == null) {
+                dailyBonuses
+            } else {
+                dailyBonuses.filter { it.workerDayId in scopedDayIds }
+            }
+            val scopedGeneralBonuses = if (effectiveObjectId == null) {
+                generalBonuses
+            } else {
+                generalBonuses.filter { it.objectId == effectiveObjectId }
+            }
+            val scopedPayments = if (effectiveObjectId == null) {
+                payments
+            } else {
+                payments.filter { it.objectId == effectiveObjectId }
+            }
 
             WorkerStats(
                 workerId = worker.id,
                 workerName = worker.name,
                 position = worker.position,
                 defaultRate = worker.defaultRate,
-                workedDaysCount = daysCount,
-                totalSalaryEarned = salary,
-                totalDailyBonuses = dailyBonus,
-                totalGeneralBonuses = generalBonus,
-                totalPaid = paid
+                workedDaysCount = scopedDays.count {
+                    it.status == AttendanceStatus.WORKED || it.status == AttendanceStatus.HALF_DAY
+                },
+                totalSalaryEarned = scopedDays.sumOf { it.paymentAmount },
+                totalDailyBonuses = scopedDailyBonuses.sumOf { it.amount },
+                totalGeneralBonuses = scopedGeneralBonuses.sumOf { it.amount },
+                totalPaid = scopedPayments.sumOf { it.amount }
             )
         }
     }
@@ -205,7 +230,10 @@ class GetGlobalFinancialSummaryUseCase(
                     getObjectFinancialSummaryUseCase(obj.id)
                 }
 
-                combine(objectSummaryFlows) { summariesArray ->
+                combine(
+                    combine(objectSummaryFlows) { it },
+                    workerRepository.getAllWorkers()
+                ) { summariesArray, allWorkers ->
                     val nonNullSummaries = summariesArray.filterNotNull()
                     val totalObjects = objects.size
                     val activeObjects = objects.count { it.status == ObjectStatus.ACTIVE }
@@ -224,7 +252,10 @@ class GetGlobalFinancialSummaryUseCase(
                     val totalPaidOtherExp = nonNullSummaries.sumOf { it.totalPaidOtherExpenses }
                     val totalOwnPocket = nonNullSummaries.sumOf { it.totalPaidFromOwnPocket }
                     val totalWorkerDebt = nonNullSummaries.sumOf { it.totalWorkerDebt }
-                    val totalWorkers = nonNullSummaries.sumOf { it.totalWorkerCount }
+                    // Diqqat: obyektlar bo'yicha ishchilar sonini yig'indisi emas, balki
+                    // BARCHA obyektlar bo'yicha TAKRORLANMAS ishchilar soni - aks holda bir nechta
+                    // obyektga biriktirilgan ishchi bir necha marta hisoblanib ketardi.
+                    val totalWorkers = allWorkers.distinctBy { it.id }.size
                     val totalWorkDays = nonNullSummaries.sumOf { it.totalWorkDaysCount }
 
                     // Obyektlar rentabelligi va reytingi

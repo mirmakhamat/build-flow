@@ -47,6 +47,8 @@ import uz.buildflow.app.core.theme.*
 import uz.buildflow.app.core.util.AppLockManager
 import uz.buildflow.app.core.util.BiometricHelper
 import uz.buildflow.app.core.util.DeviceSecurityManager
+import uz.buildflow.app.presentation.workers.MergeWorkersBottomSheet
+import uz.buildflow.app.presentation.workers.MergeWorkersViewModel
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,6 +56,7 @@ import java.util.Calendar
 fun SettingsScreen(
     userPreferences: UserPreferences,
     appLockManager: AppLockManager,
+    mergeWorkersViewModel: MergeWorkersViewModel? = null,
     onNavigateBack: () -> Unit,
     onExportDatabase: () -> Unit,
     onImportDatabase: () -> Unit
@@ -63,6 +66,7 @@ fun SettingsScreen(
     val appLockTimeout by userPreferences.appLockTimeoutSeconds.collectAsState()
     val deviceId = remember { DeviceSecurityManager.getDeviceId(context) }
     val hasDeviceSecurity = remember { BiometricHelper.canAuthenticate(context) }
+    var showMergeSheet by remember { mutableStateOf(false) }
 
     // Davomat eslatmasi bildirishnomasi
     val isAttendanceReminderEnabled by userPreferences.isAttendanceReminderEnabled.collectAsState()
@@ -592,6 +596,20 @@ fun SettingsScreen(
                         subtitle = "Vaqtinchalik fayllarni tozalash va xotirani bo'shatish",
                         onClick = { clearCache() }
                     )
+
+                    if (mergeWorkersViewModel != null) {
+                        HorizontalDivider(color = BorderColor, modifier = Modifier.padding(horizontal = 16.dp))
+
+                        SettingsRow(
+                            icon = Icons.Default.MergeType,
+                            title = "Dublikat Ishchilarni Birlashtirish",
+                            subtitle = "Bir xil ishchilarning turli obyektlardagi profillarini 1 taga jamlash",
+                            onClick = {
+                                mergeWorkersViewModel.loadData()
+                                showMergeSheet = true
+                            }
+                        )
+                    }
                 }
             }
 
@@ -736,6 +754,13 @@ fun SettingsScreen(
                     Text("Tushundim")
                 }
             }
+        )
+    }
+
+    if (showMergeSheet && mergeWorkersViewModel != null) {
+        MergeWorkersBottomSheet(
+            viewModel = mergeWorkersViewModel,
+            onDismiss = { showMergeSheet = false }
         )
     }
 }

@@ -82,6 +82,7 @@ fun DailyAttendanceBatchScreen(
 
                 WorkerDay(
                     workerId = item.worker.id,
+                    objectId = objectId,
                     date = date,
                     status = if (item.isPresent) item.status else AttendanceStatus.ABSENT,
                     paymentAmount = amt,

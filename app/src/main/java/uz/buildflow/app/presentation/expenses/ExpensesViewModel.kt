@@ -13,6 +13,7 @@ import uz.buildflow.app.domain.model.ExpenseCategoryItem
 import uz.buildflow.app.domain.repository.ExpenseCategoryRepository
 import uz.buildflow.app.domain.repository.ExpenseRepository
 import uz.buildflow.app.domain.repository.ObjectRepository
+import uz.buildflow.app.domain.repository.TransactionRepository
 
 data class ExpensesUiState(
     val expenses: List<Expense> = emptyList(),
@@ -32,6 +33,7 @@ class ExpensesViewModel(
     private val expenseRepository: ExpenseRepository,
     private val categoryRepository: ExpenseCategoryRepository,
     private val objectRepository: ObjectRepository,
+    private val transactionRepository: TransactionRepository,
     initialObjectId: String? = null
 ) : ViewModel() {
 
@@ -152,6 +154,13 @@ class ExpensesViewModel(
     fun deleteExpense(expense: Expense) {
         viewModelScope.launch {
             expenseRepository.deleteExpense(expense)
+            // Bu "Kassalararo o'tkazma" xarajati bo'lsa, unga bog'langan (qabul qiluvchi
+            // obyektdagi) kirim yozuvini ham o'chiramiz - aks holda u yerda "hech qayerdan
+            // kelmagan" kirim osilib qolaveradi.
+            if (expense.category == "Kassalararo o'tkazma" && expense.id.startsWith("exp_tr_")) {
+                val linkedTransactionId = expense.id.removePrefix("exp_tr_")
+                transactionRepository.deleteTransactionById(linkedTransactionId)
+            }
             closeAddExpense()
         }
     }
@@ -161,11 +170,12 @@ class ExpensesViewModel(
             expenseRepository: ExpenseRepository,
             categoryRepository: ExpenseCategoryRepository,
             objectRepository: ObjectRepository,
+            transactionRepository: TransactionRepository,
             initialObjectId: String? = null
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return ExpensesViewModel(expenseRepository, categoryRepository, objectRepository, initialObjectId) as T
+                return ExpensesViewModel(expenseRepository, categoryRepository, objectRepository, transactionRepository, initialObjectId) as T
             }
         }
     }

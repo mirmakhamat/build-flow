@@ -19,6 +19,8 @@ interface WorkerRepository {
     suspend fun insertWorker(worker: Worker)
     suspend fun updateWorker(worker: Worker)
     suspend fun transferWorkers(workerIds: List<String>, targetObjectId: String)
+    suspend fun assignWorkersToObject(workerIds: List<String>, targetObjectId: String)
+    suspend fun removeWorkerFromObject(workerId: String, objectId: String)
     suspend fun deleteWorker(worker: Worker)
 }
 
@@ -78,6 +80,7 @@ interface TransactionRepository {
     suspend fun insertTransaction(transaction: MoneyTransaction)
     suspend fun updateTransaction(transaction: MoneyTransaction)
     suspend fun deleteTransaction(transaction: MoneyTransaction)
+    suspend fun deleteTransactionById(id: String)
 
     // Worker Payments
     fun getPaymentsByWorker(workerId: String): Flow<List<WorkerPayment>>

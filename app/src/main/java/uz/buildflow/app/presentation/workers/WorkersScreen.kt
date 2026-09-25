@@ -31,6 +31,7 @@ import uz.buildflow.app.presentation.common.PrivacyToggleButton
 @Composable
 fun WorkersScreen(
     viewModel: WorkersViewModel,
+    mergeWorkersViewModel: MergeWorkersViewModel? = null,
     onBackToObjects: (() -> Unit)? = null,
     onWorkerClick: (String) -> Unit,
     onBatchAttendanceClick: () -> Unit,
@@ -39,6 +40,7 @@ fun WorkersScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val isPrivacyMode = LocalPrivacyMode.current
+    var showMergeSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { msg ->
@@ -93,6 +95,20 @@ fun WorkersScreen(
                             contentDescription = "Boshqa obyektdan ishchi ko'chirish",
                             tint = DeepBluePrimary
                         )
+                    }
+
+                    // Dublikatlarni birlashtirish
+                    if (mergeWorkersViewModel != null) {
+                        IconButton(onClick = {
+                            mergeWorkersViewModel.loadData()
+                            showMergeSheet = true
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.MergeType,
+                                contentDescription = "Dublikatlarni birlashtirish",
+                                tint = DeepBluePrimary
+                            )
+                        }
                     }
 
                     if (!uiState.selectedObjectId.isNullOrBlank()) {
@@ -305,6 +321,14 @@ fun WorkersScreen(
             importableWorkers = uiState.importableWorkers,
             onDismiss = { viewModel.closeImportWorkerSheet() },
             onImportWorkers = { list -> viewModel.importWorkersToCurrentObject(list) }
+        )
+    }
+
+    // Dublikatlarni birlashtirish Sheet
+    if (showMergeSheet && mergeWorkersViewModel != null) {
+        MergeWorkersBottomSheet(
+            viewModel = mergeWorkersViewModel,
+            onDismiss = { showMergeSheet = false }
         )
     }
 }

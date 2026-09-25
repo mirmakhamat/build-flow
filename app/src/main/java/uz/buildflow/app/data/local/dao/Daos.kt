@@ -32,23 +32,70 @@ interface WorkerDao {
     @Query("SELECT * FROM workers ORDER BY name ASC")
     fun getAllWorkers(): Flow<List<WorkerEntity>>
 
-    @Query("SELECT * FROM workers WHERE object_id = :objectId ORDER BY name ASC")
+    @Query("SELECT * FROM workers ORDER BY name ASC")
+    suspend fun getAllWorkersDirect(): List<WorkerEntity>
+
+    @Query("""
+        SELECT DISTINCT w.* FROM workers w
+        LEFT JOIN object_workers ow ON w.id = ow.worker_id
+        LEFT JOIN worker_days wd ON w.id = wd.worker_id AND wd.object_id = :objectId
+        LEFT JOIN worker_payments wp ON w.id = wp.worker_id AND wp.object_id = :objectId
+        LEFT JOIN general_bonuses gb ON w.id = gb.worker_id AND gb.object_id = :objectId
+        WHERE w.object_id = :objectId 
+           OR ow.object_id = :objectId
+           OR wd.object_id = :objectId
+           OR wp.object_id = :objectId
+           OR gb.object_id = :objectId
+        ORDER BY w.name ASC
+    """)
     fun getWorkersByObject(objectId: String): Flow<List<WorkerEntity>>
 
     @Query("SELECT * FROM workers WHERE id = :id LIMIT 1")
     fun getWorkerById(id: String): Flow<WorkerEntity?>
 
-    @Query("SELECT COUNT(*) FROM workers WHERE object_id = :objectId AND status = 'ACTIVE'")
+    @Query("SELECT * FROM workers WHERE id = :id LIMIT 1")
+    suspend fun getWorkerByIdDirect(id: String): WorkerEntity?
+
+    @Query("""
+        SELECT COUNT(DISTINCT w.id) FROM workers w
+        LEFT JOIN object_workers ow ON w.id = ow.worker_id
+        LEFT JOIN worker_days wd ON w.id = wd.worker_id AND wd.object_id = :objectId
+        LEFT JOIN worker_payments wp ON w.id = wp.worker_id AND wp.object_id = :objectId
+        LEFT JOIN general_bonuses gb ON w.id = gb.worker_id AND gb.object_id = :objectId
+        WHERE (w.object_id = :objectId OR ow.object_id = :objectId OR wd.object_id = :objectId OR wp.object_id = :objectId OR gb.object_id = :objectId)
+          AND w.status = 'ACTIVE'
+    """)
     fun getActiveWorkerCount(objectId: String): Flow<Int>
+
+    @Query("SELECT object_id FROM object_workers WHERE worker_id = :workerId")
+    suspend fun getAssignedObjectIdsForWorker(workerId: String): List<String>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWorker(worker: WorkerEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertObjectWorker(crossRef: ObjectWorkerCrossRefEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertObjectWorkers(crossRefs: List<ObjectWorkerCrossRefEntity>)
+
+    @Query("DELETE FROM object_workers WHERE object_id = :objectId AND worker_id = :workerId")
+    suspend fun removeWorkerFromObject(objectId: String, workerId: String)
+
+    @Query("UPDATE object_workers SET worker_id = :targetWorkerId WHERE worker_id = :sourceWorkerId")
+    suspend fun reassignObjectWorkers(sourceWorkerId: String, targetWorkerId: String)
 
     @Update
     suspend fun updateWorker(worker: WorkerEntity)
 
     @Query("UPDATE workers SET object_id = :targetObjectId, updated_at = :now WHERE id IN (:workerIds)")
     suspend fun transferWorkers(workerIds: List<String>, targetObjectId: String, now: Long = System.currentTimeMillis())
+
+    @Query("DELETE FROM workers WHERE id = :id")
+    suspend fun deleteWorkerById(id: String)
+
+    @Query("DELETE FROM workers WHERE id IN (:ids)")
+    suspend fun deleteWorkersByIds(ids: List<String>)
 
     @Delete
     suspend fun deleteWorker(worker: WorkerEntity)
@@ -59,6 +106,9 @@ interface WorkerDayDao {
     @Query("SELECT * FROM worker_days WHERE worker_id = :workerId ORDER BY date DESC")
     fun getDaysByWorker(workerId: String): Flow<List<WorkerDayEntity>>
 
+    @Query("SELECT * FROM worker_days WHERE worker_id = :workerId ORDER BY date ASC")
+    suspend fun getDaysListByWorker(workerId: String): List<WorkerDayEntity>
+
     @Query("SELECT * FROM worker_days WHERE worker_id = :workerId AND date = :date LIMIT 1")
     suspend fun getDayByWorkerAndDate(workerId: String, date: String): WorkerDayEntity?
 
@@ -67,22 +117,24 @@ interface WorkerDayDao {
 
     @Query("""
         SELECT wd.* FROM worker_days wd 
-        INNER JOIN workers w ON wd.worker_id = w.id 
-        WHERE w.object_id = :objectId AND wd.date = :date
+        LEFT JOIN workers w ON wd.worker_id = w.id 
+        WHERE (wd.object_id = :objectId OR (wd.object_id IS NULL AND w.object_id = :objectId)) 
+          AND wd.date = :date
     """)
     fun getDaysByObjectAndDate(objectId: String, date: String): Flow<List<WorkerDayEntity>>
 
     @Query("""
         SELECT COALESCE(SUM(wd.payment_amount), 0.0) FROM worker_days wd 
-        INNER JOIN workers w ON wd.worker_id = w.id 
-        WHERE w.object_id = :objectId
+        LEFT JOIN workers w ON wd.worker_id = w.id 
+        WHERE wd.object_id = :objectId OR (wd.object_id IS NULL AND w.object_id = :objectId)
     """)
     fun getTotalSalaryByObject(objectId: String): Flow<Double>
 
     @Query("""
         SELECT COUNT(wd.id) FROM worker_days wd 
-        INNER JOIN workers w ON wd.worker_id = w.id 
-        WHERE w.object_id = :objectId AND wd.status IN ('WORKED', 'HALF_DAY')
+        LEFT JOIN workers w ON wd.worker_id = w.id 
+        WHERE (wd.object_id = :objectId OR (wd.object_id IS NULL AND w.object_id = :objectId)) 
+          AND wd.status IN ('WORKED', 'HALF_DAY')
     """)
     fun getTotalWorkedDaysCountByObject(objectId: String): Flow<Int>
 
@@ -91,6 +143,18 @@ interface WorkerDayDao {
 
     @Query("SELECT COUNT(*) FROM worker_days WHERE worker_id = :workerId AND status IN ('WORKED', 'HALF_DAY')")
     fun getWorkedDaysCountByWorker(workerId: String): Flow<Int>
+
+    @Query("UPDATE worker_days SET worker_id = :targetWorkerId, updated_at = :now WHERE id = :dayId")
+    suspend fun reassignWorkerDay(dayId: String, targetWorkerId: String, now: Long = System.currentTimeMillis())
+
+    // Ishchi boshqa obyektga ko'chirilishidan OLDIN, uning object_id yozilmagan (eski/legacy) kunlarini
+    // hozirgi (eski) obyektiga "muhrlab" qo'yamiz - aks holda bu kunlar ishchi bilan birga yangi
+    // obyektga "ko'chib" ketib, qarz noto'g'ri obyektga yozilib qoladi.
+    @Query("UPDATE worker_days SET object_id = :objectId WHERE worker_id = :workerId AND object_id IS NULL")
+    suspend fun backfillNullObjectId(workerId: String, objectId: String)
+
+    @Query("DELETE FROM worker_days WHERE id = :id")
+    suspend fun deleteWorkerDayById(id: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWorkerDay(workerDay: WorkerDayEntity): Long
@@ -110,18 +174,28 @@ interface DailyBonusDao {
     @Query("SELECT * FROM daily_bonuses WHERE worker_id = :workerId ORDER BY date DESC")
     fun getBonusesByWorker(workerId: String): Flow<List<DailyBonusEntity>>
 
+    @Query("SELECT * FROM daily_bonuses WHERE worker_id = :workerId")
+    suspend fun getBonusesListByWorker(workerId: String): List<DailyBonusEntity>
+
     @Query("SELECT * FROM daily_bonuses WHERE worker_day_id = :workerDayId LIMIT 1")
     fun getBonusByDay(workerDayId: String): Flow<DailyBonusEntity?>
 
     @Query("""
         SELECT COALESCE(SUM(db.amount), 0.0) FROM daily_bonuses db
-        INNER JOIN workers w ON db.worker_id = w.id
-        WHERE w.object_id = :objectId
+        LEFT JOIN worker_days wd ON db.worker_day_id = wd.id
+        LEFT JOIN workers w ON db.worker_id = w.id
+        WHERE wd.object_id = :objectId OR (wd.object_id IS NULL AND w.object_id = :objectId)
     """)
     fun getTotalDailyBonusesByObject(objectId: String): Flow<Double>
 
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM daily_bonuses WHERE worker_id = :workerId")
     fun getTotalDailyBonusesByWorker(workerId: String): Flow<Double>
+
+    @Query("UPDATE daily_bonuses SET worker_id = :targetWorkerId WHERE worker_id = :sourceWorkerId")
+    suspend fun reassignDailyBonuses(sourceWorkerId: String, targetWorkerId: String)
+
+    @Query("UPDATE daily_bonuses SET worker_id = :targetWorkerId, worker_day_id = :targetDayId WHERE worker_day_id = :sourceDayId")
+    suspend fun reassignDailyBonusesByDay(sourceDayId: String, targetDayId: String, targetWorkerId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBonus(bonus: DailyBonusEntity)
@@ -141,11 +215,17 @@ interface GeneralBonusDao {
     @Query("SELECT * FROM general_bonuses WHERE worker_id = :workerId ORDER BY date DESC")
     fun getBonusesByWorker(workerId: String): Flow<List<GeneralBonusEntity>>
 
+    @Query("SELECT * FROM general_bonuses WHERE worker_id = :workerId")
+    suspend fun getBonusesListByWorker(workerId: String): List<GeneralBonusEntity>
+
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM general_bonuses WHERE object_id = :objectId")
     fun getTotalGeneralBonusesByObject(objectId: String): Flow<Double>
 
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM general_bonuses WHERE worker_id = :workerId")
     fun getTotalGeneralBonusesByWorker(workerId: String): Flow<Double>
+
+    @Query("UPDATE general_bonuses SET worker_id = :targetWorkerId WHERE worker_id = :sourceWorkerId")
+    suspend fun reassignGeneralBonuses(sourceWorkerId: String, targetWorkerId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBonus(bonus: GeneralBonusEntity)
@@ -192,6 +272,9 @@ interface ExpenseDao {
     @Query("SELECT category, SUM(amount) as totalAmount FROM expenses WHERE object_id = :objectId GROUP BY category")
     fun getCategoryBreakdowns(objectId: String): Flow<List<CategorySum>>
 
+    @Query("UPDATE expenses SET worker_id = :targetWorkerId WHERE worker_id = :sourceWorkerId")
+    suspend fun reassignWorkerExpenses(sourceWorkerId: String, targetWorkerId: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpense(expense: ExpenseEntity)
 
@@ -225,6 +308,9 @@ interface MoneyTransactionDao {
     @Update
     suspend fun updateTransaction(transaction: MoneyTransactionEntity)
 
+    @Query("DELETE FROM money_transactions WHERE id = :id")
+    suspend fun deleteTransactionById(id: String)
+
     @Delete
     suspend fun deleteTransaction(transaction: MoneyTransactionEntity)
 }
@@ -233,6 +319,9 @@ interface MoneyTransactionDao {
 interface WorkerPaymentDao {
     @Query("SELECT * FROM worker_payments WHERE worker_id = :workerId ORDER BY date DESC, created_at DESC")
     fun getPaymentsByWorker(workerId: String): Flow<List<WorkerPaymentEntity>>
+
+    @Query("SELECT * FROM worker_payments WHERE worker_id = :workerId")
+    suspend fun getPaymentsListByWorker(workerId: String): List<WorkerPaymentEntity>
 
     @Query("SELECT * FROM worker_payments WHERE object_id = :objectId ORDER BY date DESC, created_at DESC")
     fun getPaymentsByObject(objectId: String): Flow<List<WorkerPaymentEntity>>
@@ -260,6 +349,9 @@ interface WorkerPaymentDao {
 
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM worker_payments WHERE object_id = :objectId AND payer_object_id = 'OWN_POCKET'")
     fun getTotalPaidFromOwnPocketForThisWorkers(objectId: String): Flow<Double>
+
+    @Query("UPDATE worker_payments SET worker_id = :targetWorkerId WHERE worker_id = :sourceWorkerId")
+    suspend fun reassignPayments(sourceWorkerId: String, targetWorkerId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPayment(payment: WorkerPaymentEntity)

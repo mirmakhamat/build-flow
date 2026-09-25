@@ -56,6 +56,10 @@ fun AddExpenseSheet(
 
     val isEditMode = existingExpense != null
     val isValid = amountStr.isNotBlank()
+    // Kassalararo o'tkazma yozuvining ikkinchi (kirim) tarafi bor - bu yerdan tahrirlansa
+    // ikkalasi bir-biridan uzilib (desync bo'lib) qoladi, shu sabab bu yerda faqat o'chirish
+    // mumkin, tahrirlash "Kirimlar" bo'limidan amalga oshiriladi.
+    val isTransfer = existingExpense?.category == "Kassalararo o'tkazma"
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -82,8 +86,16 @@ fun AddExpenseSheet(
                 }
             }
 
+            if (isTransfer) {
+                Text(
+                    text = "Bu obyektlararo o'tkazma yozuvi. Miqdori yoki sanasini o'zgartirish uchun uni \"Kirimlar\" bo'limidan tahrirlang - bu yerdan faqat o'chirish mumkin.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF8B5CF6)
+                )
+            }
+
             Text(text = "Kategoriya", style = MaterialTheme.typography.labelMedium)
-            
+
             OptInFlowRow(
                 categories = categories,
                 selectedCategory = selectedCategoryName,
@@ -174,7 +186,7 @@ fun AddExpenseSheet(
                     val amt = amountStr.toDoubleOrNull() ?: 0.0
                     onSave(selectedCategoryName, amt, date, description.trim().ifBlank { null }, null, selectedPayerObjectId)
                 },
-                enabled = isValid,
+                enabled = isValid && !isTransfer,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),

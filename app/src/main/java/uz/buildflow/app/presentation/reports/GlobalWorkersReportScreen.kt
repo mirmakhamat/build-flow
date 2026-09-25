@@ -29,16 +29,20 @@ import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.domain.model.*
 import uz.buildflow.app.presentation.common.EmptyStateView
 import uz.buildflow.app.presentation.common.PrivacyToggleButton
+import uz.buildflow.app.presentation.workers.MergeWorkersBottomSheet
+import uz.buildflow.app.presentation.workers.MergeWorkersViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GlobalWorkersReportScreen(
     viewModel: GlobalWorkersReportViewModel,
+    mergeWorkersViewModel: MergeWorkersViewModel? = null,
     onNavigateBack: () -> Unit,
     onTogglePrivacy: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isPrivacyMode = LocalPrivacyMode.current
+    var showMergeSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -69,6 +73,18 @@ fun GlobalWorkersReportScreen(
                     }
                 },
                 actions = {
+                    if (mergeWorkersViewModel != null) {
+                        IconButton(onClick = {
+                            mergeWorkersViewModel.loadData()
+                            showMergeSheet = true
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.MergeType,
+                                contentDescription = "Dublikatlarni birlashtirish",
+                                tint = DeepBluePrimary
+                            )
+                        }
+                    }
                     PrivacyToggleButton(onToggle = onTogglePrivacy)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceLight)
@@ -196,6 +212,13 @@ fun GlobalWorkersReportScreen(
             item = workerDetail,
             isPrivacyMode = isPrivacyMode,
             onDismiss = { viewModel.onSelectWorker(null) }
+        )
+    }
+
+    if (showMergeSheet && mergeWorkersViewModel != null) {
+        MergeWorkersBottomSheet(
+            viewModel = mergeWorkersViewModel,
+            onDismiss = { showMergeSheet = false }
         )
     }
 }

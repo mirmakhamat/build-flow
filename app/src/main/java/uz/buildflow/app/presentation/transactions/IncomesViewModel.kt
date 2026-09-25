@@ -150,6 +150,10 @@ class IncomesViewModel(
                         description = "[${currentObj?.name ?: "Boshqa obyekt"} kassasiga o'tkazma] ${description ?: ""}".trim()
                     )
                     expenseRepository.insertExpense(linkedExp)
+                } else {
+                    // O'tkazma manbasi olib tashlangan (oddiy kirimga aylantirilgan) -
+                    // eski obyektdagi bog'langan xarajat "osilib" qolmasligi uchun o'chiramiz
+                    expenseRepository.deleteExpenseById(linkedExpenseId)
                 }
             } else {
                 val finalDesc = if (sourceObjectId != null) {

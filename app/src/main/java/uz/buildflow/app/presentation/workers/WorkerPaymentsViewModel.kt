@@ -50,10 +50,15 @@ class WorkerPaymentsViewModel(
         loadJob = viewModelScope.launch {
             combine(
                 transactionRepository.getPaymentsByWorker(workerId),
-                getWorkerStatsUseCase(workerId)
+                getWorkerStatsUseCase(workerId, initialObjectId)
             ) { paymentsList, stats ->
+                val scopedPayments = if (initialObjectId.isNullOrBlank()) {
+                    paymentsList
+                } else {
+                    paymentsList.filter { it.objectId == initialObjectId }
+                }
                 WorkerPaymentsUiState(
-                    payments = paymentsList,
+                    payments = scopedPayments,
                     stats = stats,
                     selectedPayment = _uiState.value.selectedPayment,
                     isAddSheetOpen = _uiState.value.isAddSheetOpen,

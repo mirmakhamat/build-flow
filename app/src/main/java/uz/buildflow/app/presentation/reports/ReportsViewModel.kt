@@ -121,7 +121,7 @@ class ReportsViewModel(
                     if (workerList.isEmpty()) {
                         flowOf(emptyList())
                     } else {
-                        val statsFlows = workerList.map { w -> getWorkerStatsUseCase(w.id) }
+                        val statsFlows = workerList.map { w -> getWorkerStatsUseCase(w.id, objectId) }
                         combine(statsFlows) { array -> array.filterNotNull() }
                     }
                 }.collect { stats ->

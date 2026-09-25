@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import uz.buildflow.app.data.local.*
 import uz.buildflow.app.data.local.dao.*
+import uz.buildflow.app.data.local.entity.ObjectWorkerCrossRefEntity
 import uz.buildflow.app.domain.model.*
 import uz.buildflow.app.domain.repository.*
 
@@ -32,10 +33,34 @@ class WorkerRepositoryImpl(private val workerDao: WorkerDao) : WorkerRepository 
     override fun getActiveWorkerCount(objectId: String): Flow<Int> =
         workerDao.getActiveWorkerCount(objectId)
 
-    override suspend fun insertWorker(worker: Worker) = workerDao.insertWorker(worker.toEntity())
+    override suspend fun insertWorker(worker: Worker) {
+        workerDao.insertWorker(worker.toEntity())
+        workerDao.insertObjectWorker(
+            ObjectWorkerCrossRefEntity(
+                objectId = worker.objectId,
+                workerId = worker.id
+            )
+        )
+    }
+
     override suspend fun updateWorker(worker: Worker) = workerDao.updateWorker(worker.toEntity())
+
     override suspend fun transferWorkers(workerIds: List<String>, targetObjectId: String) =
         workerDao.transferWorkers(workerIds, targetObjectId)
+
+    override suspend fun assignWorkersToObject(workerIds: List<String>, targetObjectId: String) {
+        val crossRefs = workerIds.map { workerId ->
+            ObjectWorkerCrossRefEntity(
+                objectId = targetObjectId,
+                workerId = workerId
+            )
+        }
+        workerDao.insertObjectWorkers(crossRefs)
+    }
+
+    override suspend fun removeWorkerFromObject(workerId: String, objectId: String) =
+        workerDao.removeWorkerFromObject(objectId, workerId)
+
     override suspend fun deleteWorker(worker: Worker) = workerDao.deleteWorker(worker.toEntity())
 }
 
@@ -187,6 +212,9 @@ class TransactionRepositoryImpl(
 
     override suspend fun deleteTransaction(transaction: MoneyTransaction) =
         moneyTransactionDao.deleteTransaction(transaction.toEntity())
+
+    override suspend fun deleteTransactionById(id: String) =
+        moneyTransactionDao.deleteTransactionById(id)
 
     override fun getPaymentsByWorker(workerId: String): Flow<List<WorkerPayment>> =
         workerPaymentDao.getPaymentsByWorker(workerId).map { list -> list.map { it.toDomain() } }

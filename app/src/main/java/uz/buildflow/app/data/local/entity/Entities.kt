@@ -55,6 +55,34 @@ data class WorkerEntity(
 )
 
 @Entity(
+    tableName = "object_workers",
+    primaryKeys = ["object_id", "worker_id"],
+    foreignKeys = [
+        ForeignKey(
+            entity = ObjectEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["object_id"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = WorkerEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["worker_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["object_id"]),
+        Index(value = ["worker_id"])
+    ]
+)
+data class ObjectWorkerCrossRefEntity(
+    @ColumnInfo(name = "object_id") val objectId: String,
+    @ColumnInfo(name = "worker_id") val workerId: String,
+    @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
     tableName = "worker_days",
     foreignKeys = [
         ForeignKey(
@@ -66,12 +94,14 @@ data class WorkerEntity(
     ],
     indices = [
         Index(value = ["worker_id", "date"], unique = true),
-        Index(value = ["date"])
+        Index(value = ["date"]),
+        Index(value = ["object_id"])
     ]
 )
 data class WorkerDayEntity(
     @PrimaryKey val id: String,
     @ColumnInfo(name = "worker_id") val workerId: String,
+    @ColumnInfo(name = "object_id") val objectId: String? = null,
     val date: String,
     val status: String,
     @ColumnInfo(name = "payment_amount") val paymentAmount: Double,

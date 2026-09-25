@@ -160,9 +160,16 @@ fun AppNavigation(
 
                 // 0.1 SOZLAMALAR VA XAVFSIZLIK
                 composable("settings") {
+                    val mergeViewModel: MergeWorkersViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                        factory = MergeWorkersViewModel.provideFactory(
+                            detectDuplicateWorkersUseCase = container.detectDuplicateWorkersUseCase,
+                            mergeWorkersUseCase = container.mergeWorkersUseCase
+                        )
+                    )
                     SettingsScreen(
                         userPreferences = container.userPreferences,
                         appLockManager = container.appLockManager,
+                        mergeWorkersViewModel = mergeViewModel,
                         onNavigateBack = { navController.popBackStack() },
                         onExportDatabase = {
                             navController.popBackStack()
@@ -230,8 +237,15 @@ fun AppNavigation(
                         getGlobalWorkersReportUseCase = container.getGlobalWorkersReportUseCase
                     )
                 )
+                val mergeViewModel: MergeWorkersViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = MergeWorkersViewModel.provideFactory(
+                        detectDuplicateWorkersUseCase = container.detectDuplicateWorkersUseCase,
+                        mergeWorkersUseCase = container.mergeWorkersUseCase
+                    )
+                )
                 GlobalWorkersReportScreen(
                     viewModel = viewModel,
+                    mergeWorkersViewModel = mergeViewModel,
                     onNavigateBack = { navController.popBackStack() },
                     onTogglePrivacy = handleTogglePrivacy
                 )
@@ -272,11 +286,19 @@ fun AppNavigation(
                         container.transactionRepository,
                         container.workerDayRepository,
                         container.getWorkerStatsUseCase,
+                        container.transferWorkerUseCase,
                         objectId
+                    )
+                )
+                val mergeViewModel: MergeWorkersViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = MergeWorkersViewModel.provideFactory(
+                        detectDuplicateWorkersUseCase = container.detectDuplicateWorkersUseCase,
+                        mergeWorkersUseCase = container.mergeWorkersUseCase
                     )
                 )
                 WorkersScreen(
                     viewModel = viewModel,
+                    mergeWorkersViewModel = mergeViewModel,
                     onBackToObjects = {
                         navController.navigate("objects") {
                             popUpTo("objects") { inclusive = true }
@@ -300,6 +322,7 @@ fun AppNavigation(
                         container.expenseRepository,
                         container.expenseCategoryRepository,
                         container.objectRepository,
+                        container.transactionRepository,
                         objectId
                     )
                 )
@@ -370,6 +393,7 @@ fun AppNavigation(
                 val viewModel: WorkerDetailViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
                     factory = WorkerDetailViewModel.provideFactory(
                         workerId,
+                        objectId,
                         container.workerRepository,
                         container.workerDayRepository,
                         container.transactionRepository,

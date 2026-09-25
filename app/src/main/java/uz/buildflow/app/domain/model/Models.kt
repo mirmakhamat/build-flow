@@ -33,6 +33,7 @@ data class Worker(
 data class WorkerDay(
     val id: String = UUID.randomUUID().toString(),
     val workerId: String,
+    val objectId: String? = null,
     val date: String,
     val status: AttendanceStatus = AttendanceStatus.WORKED,
     val paymentAmount: Double = 0.0,
