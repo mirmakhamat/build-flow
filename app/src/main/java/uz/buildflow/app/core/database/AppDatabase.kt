@@ -25,7 +25,7 @@ import uz.buildflow.app.data.local.entity.*
         WorkerPaymentEntity::class,
         ExpenseCategoryEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -94,10 +94,6 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE `worker_days` ADD COLUMN `object_id` TEXT DEFAULT NULL")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_worker_days_object_id` ON `worker_days` (`object_id`)")
 
-                // 2.1. Eski "ko'chirish" bilan boshqa obyektga o'tgan ishchilarning kunlari va
-                // to'lovlarini o'z obyektiga qaytaramiz (yangi ishchi yaratilmaydi)
-                LegacyTransferRepair.run(db)
-
                 // 3. Mavjud workers ma'lumotlarini object_workers ga ko'chiramiz
                 db.execSQL("""
                     INSERT OR IGNORE INTO `object_workers` (`object_id`, `worker_id`, `created_at`)
@@ -155,6 +151,20 @@ abstract class AppDatabase : RoomDatabase() {
                     INSERT OR IGNORE INTO `object_workers` (`object_id`, `worker_id`, `created_at`)
                     SELECT `object_id`, `id`, `created_at` FROM `workers`
                     WHERE `object_id` IS NOT NULL
+                """)
+            }
+        }
+
+        // Eski "ko'chirish" bilan boshqa obyektga o'tgan ishchilarning kunlari va to'lovlarini
+        // o'z obyektiga qaytaradi (yangi ishchi yaratilmaydi). 4->5 migratsiya bunday kunlarni
+        // ishchining joriy obyektiga yozib yuborgan, shuning uchun tuzatish v6 bazalarda ham ishlaydi.
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                LegacyTransferRepair.run(db)
+                db.execSQL("""
+                    INSERT OR IGNORE INTO `object_workers` (`object_id`, `worker_id`, `created_at`)
+                    SELECT `object_id`, `worker_id`, `created_at` FROM `worker_days`
+                    WHERE `object_id` IS NOT NULL AND `worker_id` IS NOT NULL
                 """)
             }
         }
@@ -279,7 +289,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
                     MIGRATION_1_3, MIGRATION_1_4, MIGRATION_1_5,
                     MIGRATION_2_5, MIGRATION_3_5,
-                    MIGRATION_1_6, MIGRATION_2_6, MIGRATION_3_6, MIGRATION_4_6
+                    MIGRATION_1_6, MIGRATION_2_6, MIGRATION_3_6, MIGRATION_4_6,
+                    MIGRATION_6_7
                 )
                 .addCallback(object : Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
