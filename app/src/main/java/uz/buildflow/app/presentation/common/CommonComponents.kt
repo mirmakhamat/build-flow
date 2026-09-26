@@ -299,3 +299,80 @@ fun EmptyStateView(
         )
     }
 }
+
+/**
+ * Kamdan-kam kerak bo'ladigan murakkab sozlamalar (boshqa obyekt kassasidan to'lash va h.k.)
+ * uchun yig'iladigan bo'lim. Oddiy foydalanuvchi uchun standart holatda yopiq turadi.
+ */
+@Composable
+fun AdvancedSection(
+    title: String = "Qo'shimcha sozlamalar",
+    initiallyExpanded: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    var expanded by remember { mutableStateOf(initiallyExpanded) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                color = TextSecondary
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = null,
+                tint = TextMuted
+            )
+        }
+        if (expanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = content
+            )
+        }
+    }
+}
+
+data class OverflowAction(
+    val title: String,
+    val icon: ImageVector,
+    val onClick: () -> Unit
+)
+
+/** Yuqori paneldagi kam ishlatiladigan amallar uchun "⋮" menyu. */
+@Composable
+fun OverflowMenu(actions: List<OverflowAction>) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(imageVector = Icons.Default.MoreVert, contentDescription = "Qo'shimcha amallar", tint = DeepBluePrimary)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            actions.forEach { action ->
+                DropdownMenuItem(
+                    text = { Text(action.title) },
+                    leadingIcon = { Icon(imageVector = action.icon, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        action.onClick()
+                    }
+                )
+            }
+        }
+    }
+}

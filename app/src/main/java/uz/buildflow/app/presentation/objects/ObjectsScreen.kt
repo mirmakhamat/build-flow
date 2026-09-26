@@ -101,6 +101,24 @@ fun ObjectsScreen(
         }
     }
 
+    var isImportConfirmOpen by remember { mutableStateOf(false) }
+    if (isImportConfirmOpen) {
+        AlertDialog(
+            onDismissRequest = { isImportConfirmOpen = false },
+            title = { Text("Bazani tiklash") },
+            text = { Text("Joriy barcha ma'lumotlar tanlangan zaxira fayl bilan almashtiriladi va ilova qayta ishga tushadi. Davom etasizmi?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    isImportConfirmOpen = false
+                    filePickerLauncher.launch(arrayOf("*/*"))
+                }) { Text("Faylni tanlash") }
+            },
+            dismissButton = {
+                TextButton(onClick = { isImportConfirmOpen = false }) { Text("Bekor qilish") }
+            }
+        )
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -128,7 +146,7 @@ fun ObjectsScreen(
                 },
                 onImportDatabase = {
                     coroutineScope.launch { drawerState.close() }
-                    filePickerLauncher.launch(arrayOf("*/*"))
+                    isImportConfirmOpen = true
                 },
                 onRefresh = {
                     coroutineScope.launch { drawerState.close() }

@@ -27,6 +27,7 @@ enum class DrillDownType {
 }
 
 data class ReportsUiState(
+    val objectId: String = "",
     val summary: ObjectFinancialSummary? = null,
     val incomes: List<MoneyTransaction> = emptyList(),
     val expenses: List<Expense> = emptyList(),
@@ -52,7 +53,7 @@ class ReportsViewModel(
     private val objectRepository: ObjectRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ReportsUiState())
+    private val _uiState = MutableStateFlow(ReportsUiState(objectId = objectId))
     val uiState: StateFlow<ReportsUiState> = _uiState.asStateFlow()
 
     init {
@@ -100,6 +101,13 @@ class ReportsViewModel(
             launch {
                 transactionRepository.getPaymentsPaidByOtherObjectsForThisWorkers(objectId).collect { list ->
                     _uiState.update { it.copy(externalPaidForThisWorkers = list) }
+                }
+            }
+
+            // 6b. Bu kassa boshqa obyekt uchun to'lagan xarajatlar
+            launch {
+                expenseRepository.getExpensesPaidForOtherObjects(objectId).collect { list ->
+                    _uiState.update { it.copy(externalExpensesPaid = list) }
                 }
             }
 

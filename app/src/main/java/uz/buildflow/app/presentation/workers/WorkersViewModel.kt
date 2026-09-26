@@ -118,7 +118,8 @@ class WorkersViewModel(
             }.collect { list ->
                 _uiState.update {
                     it.copy(
-                        workers = list,
+                        // Nofaol (boshqa obyektga o'tgan) ishchilar ro'yxat oxirida
+                        workers = list.sortedBy { item -> item.worker.status != uz.buildflow.app.domain.model.WorkerStatus.ACTIVE },
                         isLoading = false,
                         isRefreshing = false
                     )

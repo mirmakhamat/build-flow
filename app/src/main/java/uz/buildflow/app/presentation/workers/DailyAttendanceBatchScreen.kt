@@ -23,6 +23,7 @@ import uz.buildflow.app.domain.model.*
 import uz.buildflow.app.domain.repository.TransactionRepository
 import uz.buildflow.app.domain.repository.WorkerDayRepository
 import uz.buildflow.app.domain.repository.WorkerRepository
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 
 data class BatchAttendanceItem(
@@ -49,7 +50,7 @@ fun DailyAttendanceBatchScreen(
 
     LaunchedEffect(objectId, date) {
         workerRepository.getWorkersByObject(objectId).collect { workers ->
-            items = workers.map { w ->
+            items = workers.filter { it.status == WorkerStatus.ACTIVE }.map { w ->
                 BatchAttendanceItem(
                     worker = w,
                     isPresent = true,
@@ -67,26 +68,45 @@ fun DailyAttendanceBatchScreen(
             val listToSave = items.map { item ->
                 val shouldPay = if (isAllPaid) item.isPaid else false
                 val amt = if (item.isPresent) (item.paymentAmount.toDoubleOrNull() ?: 0.0) else 0.0
+                val isPaidNow = shouldPay && amt > 0
 
-                if (shouldPay && amt > 0) {
-                    val payment = WorkerPayment(
-                        workerId = item.worker.id,
-                        objectId = objectId,
-                        amount = amt,
-                        date = date,
-                        type = PaymentType.SALARY,
-                        description = "${date} guruhli davomat to'lovi"
-                    )
-                    transactionRepository.insertWorkerPayment(payment)
+                // Shu kun uchun mavjud to'lov bo'lsa - yangilaymiz/o'chiramiz, takror yozmaymiz
+                val existingPayment = transactionRepository.getPaymentsByWorker(item.worker.id).firstOrNull()
+                    ?.find { it.date == date && it.type == PaymentType.SALARY }
+                if (isPaidNow) {
+                    if (existingPayment != null) {
+                        transactionRepository.updateWorkerPayment(existingPayment.copy(amount = amt))
+                    } else {
+                        transactionRepository.insertWorkerPayment(
+                            WorkerPayment(
+                                workerId = item.worker.id,
+                                objectId = objectId,
+                                amount = amt,
+                                date = date,
+                                type = PaymentType.SALARY,
+                                description = "${DateUtil.formatToDisplay(date)} guruhli davomat to'lovi"
+                            )
+                        )
+                    }
+                } else if (existingPayment != null) {
+                    transactionRepository.deleteWorkerPayment(existingPayment)
                 }
 
-                WorkerDay(
+                val status = if (item.isPresent) item.status else AttendanceStatus.ABSENT
+                val paymentStatus = if (isPaidNow) PaymentStatus.PAID else PaymentStatus.UNPAID
+                val existingDay = workerDayRepository.getDayByWorkerAndDate(item.worker.id, date)
+                existingDay?.copy(
+                    status = status,
+                    paymentAmount = amt,
+                    paymentStatus = paymentStatus,
+                    updatedAt = System.currentTimeMillis()
+                ) ?: WorkerDay(
                     workerId = item.worker.id,
                     objectId = objectId,
                     date = date,
-                    status = if (item.isPresent) item.status else AttendanceStatus.ABSENT,
+                    status = status,
                     paymentAmount = amt,
-                    paymentStatus = if (shouldPay) PaymentStatus.PAID else PaymentStatus.UNPAID
+                    paymentStatus = paymentStatus
                 )
             }
             workerDayRepository.saveWorkerDaysBatch(listToSave)

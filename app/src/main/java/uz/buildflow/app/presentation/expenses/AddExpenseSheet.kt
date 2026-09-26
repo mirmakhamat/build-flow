@@ -20,6 +20,7 @@ import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.Expense
 import uz.buildflow.app.domain.model.ExpenseCategoryItem
+import uz.buildflow.app.presentation.common.AdvancedSection
 import uz.buildflow.app.presentation.common.AmountInputField
 import uz.buildflow.app.presentation.common.DatePickerField
 
@@ -116,7 +117,7 @@ fun AddExpenseSheet(
             )
 
             // KROSS-OBYEKT VA SHAXSIY CHO'NTAK: Qaysi manbadan to'lanadi?
-            if (availableObjects.isNotEmpty()) {
+            if (availableObjects.isNotEmpty()) AdvancedSection(title = "To'lov manbasi", initiallyExpanded = selectedPayerObjectId != null) {
                 val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
                 val currentObj = availableObjects.find { it.id == currentObjectId }
                 val displayName = when (selectedPayerObjectId) {

@@ -28,6 +28,7 @@ import uz.buildflow.app.core.util.CurrencyFormatter
 import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.*
 import uz.buildflow.app.presentation.common.PrivacyToggleButton
+import uz.buildflow.app.presentation.common.AdvancedSection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,14 +139,6 @@ fun ReportsScreen(
                                 customColor = EmeraldSuccess,
                                 onClick = { viewModel.openDrillDown(DrillDownType.INCOMES) }
                             )
-                            if ((summary?.totalTransfersIn ?: 0.0) > 0) {
-                                InteractiveBreakdownRow(
-                                    title = "  ↳ Boshqa obyekt kassasidan kirgan o'tkazma",
-                                    amount = summary?.totalTransfersIn ?: 0.0,
-                                    customColor = Color(0xFF8B5CF6),
-                                    onClick = { viewModel.openDrillDown(DrillDownType.INCOMES) }
-                                )
-                            }
                             InteractiveBreakdownRow(
                                 title = "Mijozdan qolgan summa (Qoldiq)",
                                 amount = summary?.remainingReceivable ?: 0.0,
@@ -189,24 +182,6 @@ fun ReportsScreen(
                                 )
                             }
                             
-                            if ((summary?.totalPaidByOtherObjectsForThisWorkers ?: 0.0) > 0) {
-                                InteractiveBreakdownRow(
-                                    title = "  ↳ Boshqa obyekt hisobidan qoplangan",
-                                    amount = summary?.totalPaidByOtherObjectsForThisWorkers ?: 0.0,
-                                    customColor = DeepBluePrimary,
-                                    onClick = { viewModel.openDrillDown(DrillDownType.EXTERNAL_PAID_FOR_THIS_WORKERS) }
-                                )
-                            }
-
-                            if ((summary?.totalPaidForOtherObjectsWorkers ?: 0.0) > 0) {
-                                InteractiveBreakdownRow(
-                                    title = "  ↳ Boshqa obyekt ishchilariga to'lab berilgan",
-                                    amount = summary?.totalPaidForOtherObjectsWorkers ?: 0.0,
-                                    customColor = AmberWarning,
-                                    onClick = { viewModel.openDrillDown(DrillDownType.EXTERNAL_WORKERS_PAID) }
-                                )
-                            }
-
                             InteractiveBreakdownRow(
                                 title = "Ishchilarga qolgan qarz",
                                 amount = summary?.totalWorkerDebt ?: 0.0,
@@ -247,22 +222,56 @@ fun ReportsScreen(
                                 )
                             }
 
-                            if ((summary?.totalExpensesPaidByOtherObjects ?: 0.0) > 0) {
-                                InteractiveBreakdownRow(
-                                    title = "  ↳ Boshqa obyekt hisobidan to'langan xarajat",
-                                    amount = summary?.totalExpensesPaidByOtherObjects ?: 0.0,
-                                    customColor = DeepBluePrimary,
-                                    onClick = { viewModel.openDrillDown(DrillDownType.ALL_EXPENSES) }
-                                )
-                            }
-
-                            if ((summary?.totalExpensesPaidForOtherObjects ?: 0.0) > 0) {
-                                InteractiveBreakdownRow(
-                                    title = "  ↳ Boshqa obyekt uchun to'lab berilgan xarajat",
-                                    amount = summary?.totalExpensesPaidForOtherObjects ?: 0.0,
-                                    customColor = AmberWarning,
-                                    onClick = { viewModel.openDrillDown(DrillDownType.ALL_EXPENSES) }
-                                )
+                            // Obyektlararo hisob-kitob: faqat mavjud bo'lsa, yig'ilgan holda
+                            if (
+                                (summary?.totalTransfersIn ?: 0.0) > 0 ||
+                                (summary?.totalPaidByOtherObjectsForThisWorkers ?: 0.0) > 0 ||
+                                (summary?.totalPaidForOtherObjectsWorkers ?: 0.0) > 0 ||
+                                (summary?.totalExpensesPaidByOtherObjects ?: 0.0) > 0 ||
+                                (summary?.totalExpensesPaidForOtherObjects ?: 0.0) > 0
+                            ) {
+                                AdvancedSection(title = "Obyektlararo hisob-kitob") {
+                                    if ((summary?.totalTransfersIn ?: 0.0) > 0) {
+                                        InteractiveBreakdownRow(
+                                            title = "Boshqa obyekt kassasidan kirgan o'tkazma",
+                                            amount = summary?.totalTransfersIn ?: 0.0,
+                                            customColor = Color(0xFF8B5CF6),
+                                            onClick = { viewModel.openDrillDown(DrillDownType.INCOMES) }
+                                        )
+                                    }
+                                    if ((summary?.totalPaidByOtherObjectsForThisWorkers ?: 0.0) > 0) {
+                                        InteractiveBreakdownRow(
+                                            title = "Boshqa obyekt hisobidan qoplangan",
+                                            amount = summary?.totalPaidByOtherObjectsForThisWorkers ?: 0.0,
+                                            customColor = DeepBluePrimary,
+                                            onClick = { viewModel.openDrillDown(DrillDownType.EXTERNAL_PAID_FOR_THIS_WORKERS) }
+                                        )
+                                    }
+                                    if ((summary?.totalPaidForOtherObjectsWorkers ?: 0.0) > 0) {
+                                        InteractiveBreakdownRow(
+                                            title = "Boshqa obyekt ishchilariga to'lab berilgan",
+                                            amount = summary?.totalPaidForOtherObjectsWorkers ?: 0.0,
+                                            customColor = AmberWarning,
+                                            onClick = { viewModel.openDrillDown(DrillDownType.EXTERNAL_WORKERS_PAID) }
+                                        )
+                                    }
+                                    if ((summary?.totalExpensesPaidByOtherObjects ?: 0.0) > 0) {
+                                        InteractiveBreakdownRow(
+                                            title = "Boshqa obyekt hisobidan to'langan xarajat",
+                                            amount = summary?.totalExpensesPaidByOtherObjects ?: 0.0,
+                                            customColor = DeepBluePrimary,
+                                            onClick = { viewModel.openDrillDown(DrillDownType.ALL_EXPENSES) }
+                                        )
+                                    }
+                                    if ((summary?.totalExpensesPaidForOtherObjects ?: 0.0) > 0) {
+                                        InteractiveBreakdownRow(
+                                            title = "Boshqa obyekt uchun to'lab berilgan xarajat",
+                                            amount = summary?.totalExpensesPaidForOtherObjects ?: 0.0,
+                                            customColor = AmberWarning,
+                                            onClick = { viewModel.openDrillDown(DrillDownType.ALL_EXPENSES) }
+                                        )
+                                    }
+                                }
                             }
 
                             HorizontalDivider(color = BorderColor)
@@ -698,6 +707,17 @@ fun ExpenseDistributionChartCard(
     }
 }
 
+private const val TRANSFER_CATEGORY = "Kassalararo o'tkazma"
+
+private data class CashOutflowItem(
+    val id: String,
+    val date: String,
+    val mainText: String,
+    val subText: String,
+    val amount: Double,
+    val badgeText: String?
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportDrillDownBottomSheet(
@@ -925,8 +945,9 @@ fun ReportDrillDownBottomSheet(
                     }
                 }
 
-                DrillDownType.ALL_EXPENSES, DrillDownType.CASH_OUTFLOW -> {
-                    val list = uiState.expenses
+                DrillDownType.ALL_EXPENSES -> {
+                    // Kassalararo o'tkazma xarajat emas - faqat pul ko'chishi
+                    val list = uiState.expenses.filter { it.category != TRANSFER_CATEGORY }
                     if (list.isEmpty()) {
                         EmptyDrillDownView("Xarajatlar topilmadi")
                     } else {
@@ -936,7 +957,6 @@ fun ReportDrillDownBottomSheet(
                                 val isOtherPayer = exp.payerObjectId != null && exp.payerObjectId != exp.objectId && !isOwnPocket
                                 val isTransfer = exp.category == "Kassalararo o'tkazma"
                                 val payerObjName = allObjsMap[exp.payerObjectId]?.name ?: "Boshqa obyekt"
-
                                 DrillDownCard(
                                     date = exp.date,
                                     mainText = exp.description ?: exp.category,
@@ -954,6 +974,63 @@ fun ReportDrillDownBottomSheet(
                                         isOwnPocket -> AmberWarning
                                         else -> DeepBluePrimary
                                     }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                DrillDownType.CASH_OUTFLOW -> {
+                    // Aynan shu obyekt kassasidan chiqqan pul: summary.totalCashOutflow bilan bir xil manba
+                    val objId = uiState.objectId
+                    val paidFromThisCash = { payer: String?, owner: String -> payer == objId || (payer == null && owner == objId) }
+                    val expenseItems = (uiState.expenses + uiState.externalExpensesPaid)
+                        .distinctBy { it.id }
+                        .filter { paidFromThisCash(it.payerObjectId, it.objectId) }
+                        .map { exp ->
+                            val isTransfer = exp.category == TRANSFER_CATEGORY
+                            val forOther = exp.objectId != objId
+                            CashOutflowItem(
+                                id = "e_${exp.id}",
+                                date = exp.date,
+                                mainText = exp.description ?: exp.category,
+                                subText = "Kategoriya: ${exp.category}",
+                                amount = exp.amount,
+                                badgeText = when {
+                                    isTransfer -> "Kassa o'tkazmasi"
+                                    forOther -> "${allObjsMap[exp.objectId]?.name ?: "Boshqa obyekt"} uchun"
+                                    else -> null
+                                }
+                            )
+                        }
+                    val paymentItems = (uiState.workerPayments + uiState.externalWorkerPayments)
+                        .distinctBy { it.id }
+                        .filter { paidFromThisCash(it.payerObjectId, it.objectId) }
+                        .map { wp ->
+                            val forOther = wp.objectId != objId
+                            CashOutflowItem(
+                                id = "p_${wp.id}",
+                                date = wp.paymentDate?.ifBlank { null } ?: wp.date,
+                                mainText = allWorkersMap[wp.workerId]?.name ?: "Noma'lum ishchi",
+                                subText = "Ishchiga to'lov${if (!wp.description.isNullOrBlank()) ": ${wp.description}" else ""}",
+                                amount = wp.amount,
+                                badgeText = if (forOther) "${allObjsMap[wp.objectId]?.name ?: "Boshqa obyekt"} ishchisi" else null
+                            )
+                        }
+                    val list = (expenseItems + paymentItems).sortedByDescending { it.date }
+                    if (list.isEmpty()) {
+                        EmptyDrillDownView("Kassadan chiqim topilmadi")
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(list, key = { it.id }) { item ->
+                                DrillDownCard(
+                                    date = item.date,
+                                    mainText = item.mainText,
+                                    subText = item.subText,
+                                    amount = item.amount,
+                                    amountColor = RoseExpense,
+                                    badgeText = item.badgeText,
+                                    badgeColor = DeepBluePrimary
                                 )
                             }
                         }

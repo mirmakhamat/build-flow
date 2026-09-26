@@ -126,6 +126,12 @@ abstract class AppDatabase : RoomDatabase() {
                 // endi o'sha obyektda "doimiy" ko'rinib turishi uchun object_workers
                 // jadvaliga qayta bog'lanadi - hech qanday summalar o'zgartirilmaydi,
                 // faqat ishchining qaysi obyektlarga tegishli ekanligi tiklanadi.
+                //
+                // Baza v5 ga main branchdagi boshqa 4->5 migratsiya bilan kelgan bo'lishi mumkin
+                // (object_workers jadvali va worker_days.object_id ustunisiz), shuning uchun
+                // avval sxemani yetishmayotgan joylari bilan to'ldiramiz.
+                ensureObjectWorkersSchema(db)
+
                 db.execSQL("""
                     INSERT OR IGNORE INTO `object_workers` (`object_id`, `worker_id`, `created_at`)
                     SELECT `object_id`, `worker_id`, `created_at` FROM `worker_days`
@@ -147,6 +153,42 @@ abstract class AppDatabase : RoomDatabase() {
                     WHERE `object_id` IS NOT NULL
                 """)
             }
+        }
+
+        private fun ensureObjectWorkersSchema(db: SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `object_workers` (
+                    `object_id` TEXT NOT NULL,
+                    `worker_id` TEXT NOT NULL,
+                    `created_at` INTEGER NOT NULL,
+                    PRIMARY KEY(`object_id`, `worker_id`),
+                    FOREIGN KEY(`object_id`) REFERENCES `objects`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(`worker_id`) REFERENCES `workers`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+            """.trimIndent())
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_object_workers_object_id` ON `object_workers` (`object_id`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_object_workers_worker_id` ON `object_workers` (`worker_id`)")
+
+            val hasObjectIdColumn = db.query("PRAGMA table_info(`worker_days`)").use { cursor ->
+                val nameIndex = cursor.getColumnIndex("name")
+                var found = false
+                while (cursor.moveToNext()) {
+                    if (cursor.getString(nameIndex) == "object_id") {
+                        found = true
+                        break
+                    }
+                }
+                found
+            }
+            if (!hasObjectIdColumn) {
+                db.execSQL("ALTER TABLE `worker_days` ADD COLUMN `object_id` TEXT DEFAULT NULL")
+            }
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_worker_days_object_id` ON `worker_days` (`object_id`)")
+            db.execSQL("""
+                UPDATE `worker_days`
+                SET `object_id` = (SELECT `object_id` FROM `workers` WHERE `workers`.`id` = `worker_days`.`worker_id`)
+                WHERE `object_id` IS NULL
+            """)
         }
 
         val MIGRATION_1_3 = object : Migration(1, 3) {

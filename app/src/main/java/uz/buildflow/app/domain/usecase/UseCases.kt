@@ -62,9 +62,10 @@ class GetObjectFinancialSummaryUseCase(
         val flow4 = combine(
             expenseRepository.getCategoryBreakdowns(objectId),
             workerRepository.getActiveWorkerCount(objectId),
-            workerDayRepository.getTotalWorkedDaysCountByObject(objectId)
-        ) { categories, workerCount, workDaysCount ->
-            SummaryPart4(categories, workerCount, workDaysCount)
+            workerDayRepository.getTotalWorkedDaysCountByObject(objectId),
+            workerRepository.getTotalWorkerDebtByObject(objectId)
+        ) { categories, workerCount, workDaysCount, workerDebt ->
+            SummaryPart4(categories, workerCount, workDaysCount, workerDebt)
         }
 
         return combine(flow1, flow2, flow3, flow4) { p1, p2, p3, p4 ->
@@ -93,7 +94,8 @@ class GetObjectFinancialSummaryUseCase(
                 totalExpensesPaidFromOwnPocket = p3.expensesFromOwn,
                 categoryBreakdowns = p4.categories.filter { it.categoryName != "Kassalararo o'tkazma" },
                 totalWorkerCount = p4.workerCount,
-                totalWorkDaysCount = p4.workDaysCount
+                totalWorkDaysCount = p4.workDaysCount,
+                perWorkerDebt = p4.workerDebt
             )
         }
     }
@@ -130,7 +132,8 @@ class GetObjectFinancialSummaryUseCase(
     private data class SummaryPart4(
         val categories: List<CategoryExpenseBreakdown>,
         val workerCount: Int,
-        val workDaysCount: Int
+        val workDaysCount: Int,
+        val workerDebt: Double
     )
 }
 

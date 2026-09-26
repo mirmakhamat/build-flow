@@ -70,6 +70,27 @@ interface WorkerDao {
     @Query("SELECT object_id FROM object_workers WHERE worker_id = :workerId")
     suspend fun getAssignedObjectIdsForWorker(workerId: String): List<String>
 
+    // Har bir ishchining qarzi alohida hisoblanadi: bir ishchiga ortiqcha to'lov boshqasining qarzini yopmaydi.
+    // Faqat shu obyektga tegishli kunlar, bonuslar va to'lovlar hisobga olinadi.
+    @Query("""
+        SELECT COALESCE(SUM(CASE WHEN debt > 0 THEN debt ELSE 0 END), 0.0) FROM (
+            SELECT
+                (SELECT COALESCE(SUM(wd.payment_amount), 0.0) FROM worker_days wd
+                    WHERE wd.worker_id = w.id
+                      AND (wd.object_id = :objectId OR (wd.object_id IS NULL AND w.object_id = :objectId)))
+              + (SELECT COALESCE(SUM(db.amount), 0.0) FROM daily_bonuses db
+                    LEFT JOIN worker_days wd ON db.worker_day_id = wd.id
+                    WHERE db.worker_id = w.id
+                      AND (wd.object_id = :objectId OR (wd.object_id IS NULL AND w.object_id = :objectId)))
+              + (SELECT COALESCE(SUM(gb.amount), 0.0) FROM general_bonuses gb
+                    WHERE gb.worker_id = w.id AND gb.object_id = :objectId)
+              - (SELECT COALESCE(SUM(wp.amount), 0.0) FROM worker_payments wp
+                    WHERE wp.worker_id = w.id AND wp.object_id = :objectId) AS debt
+            FROM workers w
+        )
+    """)
+    fun getTotalWorkerDebtByObject(objectId: String): Flow<Double>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWorker(worker: WorkerEntity)
 
@@ -259,6 +280,9 @@ interface ExpenseDao {
 
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM expenses WHERE payer_object_id = :objectId AND object_id != :objectId")
     fun getTotalExpensesPaidForOtherObjects(objectId: String): Flow<Double>
+
+    @Query("SELECT * FROM expenses WHERE payer_object_id = :objectId AND object_id != :objectId ORDER BY date DESC, created_at DESC")
+    fun getExpensesPaidForOtherObjects(objectId: String): Flow<List<ExpenseEntity>>
 
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM expenses WHERE object_id = :objectId AND payer_object_id IS NOT NULL AND payer_object_id != :objectId AND payer_object_id != 'OWN_POCKET'")
     fun getTotalExpensesPaidByOtherObjects(objectId: String): Flow<Double>

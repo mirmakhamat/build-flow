@@ -19,6 +19,7 @@ import uz.buildflow.app.core.util.DateUtil
 import uz.buildflow.app.domain.model.BuildObject
 import uz.buildflow.app.domain.model.PaymentType
 import uz.buildflow.app.domain.model.WorkerPayment
+import uz.buildflow.app.presentation.common.AdvancedSection
 import uz.buildflow.app.presentation.common.AmountInputField
 import uz.buildflow.app.presentation.common.DatePickerField
 
@@ -116,7 +117,7 @@ fun AddWorkerPaymentSheet(
             )
 
             // KROSS-OBYEKT VA SHAXSIY CHO'NTAK: Qaysi manbadan to'lanadi?
-            if (availableObjects.isNotEmpty()) {
+            if (availableObjects.isNotEmpty()) AdvancedSection(title = "To'lov manbasi", initiallyExpanded = selectedPayerObjectId != null) {
                 val selectedObj = availableObjects.find { it.id == selectedPayerObjectId }
                 val currentObj = availableObjects.find { it.id == currentObjectId }
                 val displayName = when (selectedPayerObjectId) {
