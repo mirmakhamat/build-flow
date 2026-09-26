@@ -94,6 +94,10 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE `worker_days` ADD COLUMN `object_id` TEXT DEFAULT NULL")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_worker_days_object_id` ON `worker_days` (`object_id`)")
 
+                // 2.1. Eski "ko'chirish" bilan boshqa obyektga o'tgan ishchilarning kunlari va
+                // to'lovlarini o'z obyektiga qaytaramiz (yangi ishchi yaratilmaydi)
+                LegacyTransferRepair.run(db)
+
                 // 3. Mavjud workers ma'lumotlarini object_workers ga ko'chiramiz
                 db.execSQL("""
                     INSERT OR IGNORE INTO `object_workers` (`object_id`, `worker_id`, `created_at`)
